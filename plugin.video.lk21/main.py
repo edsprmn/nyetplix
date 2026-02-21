@@ -120,9 +120,21 @@ def router(param_string):
         play(params.get('url'))
 
 if __name__ == "__main__":
-    if KODI:
-        router(sys.argv[2][1:])
-    else:
-        print("Simulator mode - use terminal to test logic.")
-        # Manual test logic for simulator if needed
-        print(f"LK21 Sample: {list_lk21_movies(f'{BASE_URL}/latest')[:2]}")
+    try:
+        if KODI:
+            # sys.argv[2] contains the parameters like ?action=...
+            # If it's empty or doesn't exist, we send empty string
+            params = sys.argv[2][1:] if len(sys.argv) > 2 else ""
+            router(params)
+        else:
+            print("Simulator mode - use terminal to test logic.")
+            # Manual test logic for simulator if needed
+            print(f"LK21 Sample: {list_lk21_movies(f'{BASE_URL}/latest')[:2]}")
+    except Exception as e:
+        if KODI:
+            import traceback
+            error_msg = traceback.format_exc()
+            xbmcgui.Dialog().ok("Nyetplix Error", f"Terjadi kesalahan:\n{str(e)}\n\nKirimkan pesan ini ke developer.")
+            xbmc.log(f"NYETPLIX ERROR: {error_msg}", xbmc.LOGERROR)
+        else:
+            raise e
