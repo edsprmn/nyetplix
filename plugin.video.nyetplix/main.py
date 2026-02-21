@@ -22,6 +22,7 @@ JAV_URL = "https://javtiful.com"
 
 IPTV_INDO_URL = "https://iptv-org.github.io/iptv/countries/id.m3u"
 IPTV_SPORTS_URL = "https://iptv-org.github.io/iptv/categories/sports.m3u"
+IPTV_KABEL_URL = "https://iptv-org.github.io/iptv/categories/movies.m3u"
 
 # Konten Mapping
 MOVIES_CATS = [
@@ -361,6 +362,7 @@ def main_menu():
     add_item("Telenovela", {'action': 'folder', 'type': 'jav'})
     add_item("TV Indonesia", {'action': 'iptv', 'url': IPTV_INDO_URL, 'mode': 'indo'})
     add_item("Sports Live", {'action': 'iptv', 'url': IPTV_SPORTS_URL, 'mode': 'sports'})
+    add_item("TV Kabel", {'action': 'iptv', 'url': IPTV_KABEL_URL, 'mode': 'kabel'})
     xbmcplugin.endOfDirectory(HANDLE)
 
 def folder_menu(ftype):
@@ -448,6 +450,17 @@ def iptv_menu(url, mode='all'):
         # Tampilkan yang prioritas saja atau gabungan?
         # User minta "hanya stasiun terkenal", jadi kita tampilkan yang match saja.
         channels = priority if priority else others[:100]
+    elif mode == 'kabel':
+        # Prioritaskan HBO, Cinemax, dan Movie channel ternama
+        priority = []
+        others = []
+        keywords = ["HBO", "CINEMAX", "STAR MOVIES", "FOX MOVIES", "WARNER", "SKY MOVIES", "CINEONYX", "CINEPLEX", "WORLD MOVIES"]
+        for ch in channels:
+            if any(k in ch['title'].upper() for k in keywords):
+                priority.append(ch)
+            else:
+                others.append(ch)
+        channels = priority + [c for c in others if c not in priority]
     elif mode == 'indo':
         # Filter untuk Transvision/MNC style (General/Premium tags)
         premium_keywords = ["ANTV", "INDOSIAR", "TRANS", "METRO", "MNCTV", "SCTV", "RCTI", "GTV", "BTV"]
