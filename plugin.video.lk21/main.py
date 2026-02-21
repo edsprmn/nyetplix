@@ -68,7 +68,7 @@ def fetch(url):
     """Fetch content using requests if in Kodi, or curl if in simulator."""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-        'Referer': BASE_URL
+        'Referer': url
     }
     if KODI:
         xbmc.log(f"NYETPLIX FETCH: {url}", xbmc.LOGINFO)
@@ -84,7 +84,7 @@ def fetch(url):
             xbmcgui.Dialog().notification("Nyetplix Error", f"Gagal: {err_msg}", xbmcgui.NOTIFICATION_ERROR, 5000)
             return ""
     else:
-        command = ['curl', '-s', '-k', '-L', '-A', headers['User-Agent'], '-H', f"Referer: {BASE_URL}", url]
+        command = ['curl', '-s', '-k', '-L', '-A', headers['User-Agent'], '-H', f"Referer: {url}", url]
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         return result.stdout if result.returncode == 0 else ""
 
@@ -353,7 +353,7 @@ if __name__ == "__main__":
         else:
             print("Simulator mode - use terminal to test logic.")
             # Manual test logic for simulator if needed
-            print(f"LK21 Sample: {list_lk21_movies(f'{BASE_URL}/latest')[:2]}")
+            print(f"LK21 Sample: {list_lk21_movies(f'{LK21_URL}/latest')[:2]}")
     except Exception as e:
         if KODI:
             import traceback
