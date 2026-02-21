@@ -177,7 +177,10 @@ def add_item(label, url_params, is_folder=True, thumbnail=""):
     addon_base = sys.argv[0]
     query = urllib.parse.urlencode(url_params)
     url = f"{addon_base}?{query}"
-    list_item = xbmcgui.ListItem(label=label)
+    # Gunakan offscreen=True dan setLabel agar kompatibel dengan Kodi 19+
+    list_item = xbmcgui.ListItem(offscreen=True)
+    list_item.setLabel(label)
+    
     if thumbnail:
         list_item.setArt({'thumb': thumbnail, 'icon': thumbnail})
     
@@ -187,14 +190,13 @@ def add_item(label, url_params, is_folder=True, thumbnail=""):
     xbmcplugin.addDirectoryItem(handle=HANDLE, url=url, listitem=list_item, isFolder=is_folder)
 
 def main_menu():
-    add_item("🔍 Cari Film (Search)", {'action': 'search_lk21'})
-    add_item("🎬 Movies Terbaru", {'action': 'lk21_menu', 'url': f"{BASE_URL}/latest"})
-    add_item("📂 Kategori Film (Genre)", {'action': 'submenu', 'type': 'genre'})
-    add_item("🌍 Negara (Country)", {'action': 'submenu', 'type': 'country'})
-    add_item("📅 Tahun (Year)", {'action': 'submenu', 'type': 'year'})
-    add_item("📺 Series & Drama", {'action': 'submenu', 'type': 'series'})
-    add_item("🇮🇩 TV Indonesia", {'action': 'iptv', 'url': IPTV_INDO_URL, 'mode': 'indo'})
-    add_item("⚽ Sports Live (beIN/SPOTV)", {'action': 'iptv', 'url': IPTV_SPORTS_URL, 'mode': 'sports'})
+    add_item("Movies Terbaru", {'action': 'lk21_menu', 'url': f"{BASE_URL}/latest"})
+    add_item("Kategori Film (Genre)", {'action': 'submenu', 'type': 'genre'})
+    add_item("Negara (Country)", {'action': 'submenu', 'type': 'country'})
+    add_item("Tahun (Year)", {'action': 'submenu', 'type': 'year'})
+    add_item("Series & Drama", {'action': 'submenu', 'type': 'series'})
+    add_item("TV Indonesia", {'action': 'iptv', 'url': IPTV_INDO_URL, 'mode': 'indo'})
+    add_item("Sports Live (beIN/SPOTV)", {'action': 'iptv', 'url': IPTV_SPORTS_URL, 'mode': 'sports'})
     xbmcplugin.endOfDirectory(HANDLE)
 
 def submenu(stype):
@@ -279,8 +281,6 @@ def router(param_string):
         lk21_menu(params.get('url'))
     elif action == 'submenu':
         submenu(params.get('type'))
-    elif action == 'search_lk21':
-        search_lk21()
     elif action == 'iptv':
         iptv_menu(params.get('url'), params.get('mode', 'all'))
     elif action == 'play_lk21':
