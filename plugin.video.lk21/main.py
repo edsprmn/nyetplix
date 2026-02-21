@@ -43,20 +43,62 @@ def fetch(url):
 
 def list_lk21_movies(page_url):
     html = fetch(page_url)
+    # Pattern yang lebih inklusif untuk mengambil semua movie item di halaman
     pattern = r'<a href="([^"]+)" itemprop="url">.*?<h3 class="poster-title" itemprop="name">([^<]+)</h3>.*?<img.*?src="([^"]+)"'
     movies = re.findall(pattern, html, re.DOTALL)
     
     found = []
     for link, title, thumb in movies:
         full_link = link if link.startswith('http') else BASE_URL + link
-        found.append({'title': title.strip(), 'url': full_link, 'thumb': thumb})
-    return found
+        # Hindari duplikat
+        if not any(f['url'] == full_link for f in found):
+            found.append({'title': title.strip(), 'url': full_link, 'thumb': thumb})
+    
+    # Cari link "Next Page"
+    next_match = re.search(r'<a href="([^"]+)">»</a>', html)
+    next_page = None
+    if next_match:
+        next_page = next_match.group(1)
+        if not next_page.startswith('http'):
+            next_page = BASE_URL + next_page
+
+    return found, next_page
 
 def get_lk21_video(movie_url):
     html = fetch(movie_url)
-    player_pattern = r'href="(https://playeriframe.sbs/iframe/[^"]+)"'
-    players = re.findall(player_pattern, html)
-    return players[0] if players else None
+    player_pattern = r'href="(https://playeriframe.sbs/iframe/(p2p|hydrax|turbovip|cast)/([^"]+))"'
+    player_match = re.search(player_pattern, html)
+    
+    if player_match:
+        player_url = player_match.group(1)
+        player_id = player_match.group(3)
+        
+        # Mencoba memanggil API resolver internal (cloud.hownetwork.xyz)
+        api_url = f"https://cloud.hownetwork.xyz/api2.php?id={player_id}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Referer': f'https://cloud.hownetwork.xyz/video.php?id={player_id}',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+        
+        if KODI:
+            try:
+                payload = {'r': 'https://playeriframe.sbs/', 'd': 'cloud.hownetwork.xyz'}
+                r = requests.post(api_url, headers=headers, data=payload, timeout=10)
+                data = r.json()
+                video_url = data.get('url')
+                if not video_url and 'sources' in data and data['sources']:
+                    video_url = data['sources'][0].get('file')
+                
+                if video_url:
+                    return f"{video_url}|Referer=https://cloud.hownetwork.xyz/&User-Agent={headers['User-Agent']}"
+            except:
+                pass
+        
+        # Fallback ke pola zzz/39 jika API gagal
+        return f"https://cloud.hownetwork.xyz/zzz/{player_id}/39/480.m3u8|Referer=https://cloud.hownetwork.xyz/"
+        
+    return None
 
 def parse_m3u(url):
     content = fetch(url)
@@ -76,18 +118,26 @@ def add_item(label, url_params, is_folder=True, thumbnail=""):
     list_item = xbmcgui.ListItem(label=label)
     if thumbnail:
         list_item.setArt({'thumb': thumbnail, 'icon': thumbnail})
+    
+    if not is_folder:
+        list_item.setProperty('IsPlayable', 'true')
+        
     xbmcplugin.addDirectoryItem(handle=HANDLE, url=url, listitem=list_item, isFolder=is_folder)
 
 def main_menu():
-    add_item("Movies (LK21)", {'action': 'lk21_menu'})
+    add_item("Movies (LK21)", {'action': 'lk21_menu', 'url': f"{BASE_URL}/latest"})
     add_item("TV Indonesia", {'action': 'iptv', 'url': IPTV_INDO_URL})
     add_item("Sports Live", {'action': 'iptv', 'url': IPTV_SPORTS_URL})
     xbmcplugin.endOfDirectory(HANDLE)
 
-def lk21_menu():
-    movies = list_lk21_movies(f"{BASE_URL}/latest")
+def lk21_menu(url):
+    movies, next_page = list_lk21_movies(url)
     for movie in movies:
         add_item(movie['title'], {'action': 'play_lk21', 'url': movie['url']}, is_folder=False, thumbnail=movie['thumb'])
+    
+    if next_page:
+        add_item(">>> Halaman Berikutnya", {'action': 'lk21_menu', 'url': next_page})
+        
     xbmcplugin.endOfDirectory(HANDLE)
 
 def iptv_menu(url):
@@ -109,7 +159,7 @@ def router(param_string):
     if not action:
         main_menu()
     elif action == 'lk21_menu':
-        lk21_menu()
+        lk21_menu(params.get('url'))
     elif action == 'iptv':
         iptv_menu(params.get('url'))
     elif action == 'play_lk21':

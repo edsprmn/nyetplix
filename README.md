@@ -28,10 +28,15 @@ Selamat datang di **Nyetplix**! Ini adalah repository kustom untuk plugin Kodi A
 
 ## Untuk Pengembang (Update Repo)
 
-Setiap kali Anda menambah plugin baru atau mengupdate kode, jalankan script berikut di folder ini:
+Setiap kali Anda menambah plugin baru, mengupdate kode, atau mengubah nomor versi, jalankan perintah "sakti" ini di terminal:
 
 ```bash
-python3 generate_repo.py
+./update.sh "Pesan perubahan Anda"
 ```
 
-Lalu **push** perubahan tersebut ke GitHub agar repository di Kodi Anda ikut terupdate.
+Script ini akan otomatis melakukan:
+1.  Menjalankan `generate_repo.py` untuk mengupdate file ZIP dan master list.
+2.  Melakukan `git add` dan `git commit`.
+3.  Melakukan `git push` ke GitHub.
+
+Sangat praktis, bukan?
