@@ -73,28 +73,37 @@ YEARS = [str(y) for y in range(2026, 2010, -1)]
 
 HANDLE = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 0
 
-def fetch(url):
+def fetch(url, payload=None, extra_headers=None):
     """Fetch content using requests if in Kodi, or curl if in simulator."""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
         'Referer': url
     }
+    if extra_headers:
+        headers.update(extra_headers)
+        
     if KODI:
         xbmc.log(f"NYETPLIX FETCH: {url}", xbmc.LOGINFO)
         try:
-            # Bypass SSL (verify=False) untuk menghindari error sertifikat di Kodi
-            r = requests.get(url, headers=headers, timeout=20, verify=False)
+            if payload:
+                r = requests.post(url, headers=headers, data=payload, timeout=20, verify=False)
+            else:
+                r = requests.get(url, headers=headers, timeout=20, verify=False)
+            
             if r.status_code != 200:
                 xbmcgui.Dialog().notification("Nyetplix Error", f"HTTP {r.status_code}", xbmcgui.NOTIFICATION_ERROR, 3000)
             return r.text
         except Exception as e:
-            err_msg = str(e)[:30] # Ambil potongan pesan error
+            err_msg = str(e)[:30]
             xbmc.log(f"NYETPLIX FETCH ERROR: {str(e)}", xbmc.LOGERROR)
-            xbmcgui.Dialog().notification("Nyetplix Error", f"Gagal: {err_msg}", xbmcgui.NOTIFICATION_ERROR, 5000)
             return ""
     else:
-        command = ['curl', '-s', '-k', '-L', '-A', headers['User-Agent'], '-H', f"Referer: {url}", url]
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        # Simulator mode logic
+        cmd = ['curl', '-s', '-k', '-L', '-A', headers['User-Agent'], '-H', f"Referer: {headers['Referer']}", url]
+        if payload:
+            post_data = urllib.parse.urlencode(payload)
+            cmd += ['-d', post_data]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         return result.stdout if result.returncode == 0 else ""
 
 # --- Scraper Logic ---
@@ -165,7 +174,7 @@ def list_jav_movies(page_url):
     return found
 
 def get_jav_video(video_url):
-    """Resolver for JAVtiful.com"""
+    """Deep Resolver for JAVtiful.com using AJAX API"""
     html = fetch(video_url)
     if not html: return None
     
@@ -175,16 +184,31 @@ def get_jav_video(video_url):
         embed_url = embed_match.group(1)
         embed_html = fetch(embed_url)
         if embed_html:
-            # 2. Cari playlist/source di halaman embed
-            # Pola: const source = '...'; atau response.playlists = '...';
-            source_match = re.search(r'(?:source|playlist|playlists)\s*[:=]\s*[\'"]([^\'"]+)[\'"]', embed_html)
-            if source_match:
-                return source_match.group(1)
+            # 2. Extract video_id dan token dari embed page
+            vid_match = re.search(r'var video_id\s*=\s*[\'"]([^\'"]+)[\'"]', embed_html)
+            token_match = re.search(r'var token\s*=\s*[\'"]([^\'"]+)[\'"]', embed_html)
+            
+            if vid_match and token_match:
+                api_url = f"{JAV_URL}/ajax/embed_cdn"
+                payload = {
+                    'video_id': vid_match.group(1),
+                    'token': token_match.group(1)
+                }
+                headers = {'X-Requested-With': 'XMLHttpRequest', 'Referer': embed_url}
+                
+                # Panggil API POST
+                json_text = fetch(api_url, payload=payload, extra_headers=headers)
+                try:
+                    data = json.loads(json_text)
+                    if data.get('playlists'):
+                        return data['playlists']
+                except:
+                    pass
     
-    # Fallback: Cari langsung .m3u8 di halaman utama jika ada
-    m3u8_match = re.search(r'["\'](https?://[^"\']+\.m3u8[^"\']*)["\']', html)
-    if m3u8_match:
-        return m3u8_match.group(1)
+    # Fallback: Cari langsung .m3u8 atau .mp4
+    m3u_match = re.search(r'["\'](https?://[^"\']+\.(?:m3u8|mp4)[^"\']*)["\']', html)
+    if m3u_match:
+        return m3u_match.group(1)
         
     return None
 

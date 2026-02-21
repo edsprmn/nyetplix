@@ -15,7 +15,7 @@
     </extension>
 </addon>
 
-<addon id="plugin.video.lk21" name="LK21 Official" version="1.2.4" provider-name="edsprmn">
+<addon id="plugin.video.lk21" name="LK21 Official" version="1.2.5" provider-name="edsprmn">
     <requires>
         <import addon="xbmc.python" version="3.0.0"/>
         <import addon="script.module.requests" version="2.25.1"/>
