@@ -3,11 +3,12 @@ import re
 import urllib.request
 import urllib.parse
 import json
-
-# URL Dasar Website
-BASE_URL = "https://tv8.lk21official.cc"
-
 import subprocess
+
+# URL Dasar
+BASE_URL = "https://tv8.lk21official.cc"
+IPTV_INDO_URL = "https://raw.githubusercontent.com/mgi24/tvdigital/main/iptv_indonesia.m3u"
+IPTV_SPORTS_URL = "https://iptv-org.github.io/iptv/categories/sports.m3u"
 
 def get_html(url):
     command = [
@@ -17,74 +18,71 @@ def get_html(url):
         url
     ]
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    if result.returncode == 0:
-        return result.stdout
-    else:
-        raise Exception(f"Curl failed with error: {result.stderr}")
+    return result.stdout if result.returncode == 0 else ""
 
-def list_movies(page_url):
-    print(f"Mengambil daftar film dari: {page_url}")
+def list_lk21_movies(page_url):
     html = get_html(page_url)
-    
-    # Pattern baru berdasarkan HTML asli:
-    # <a href="([^"]+)" itemprop="url">
-    # <h3 class="poster-title" itemprop="name">([^<]+)</h3>
-    # <img ... src="([^"]+)"
     pattern = r'<a href="([^"]+)" itemprop="url">.*?<h3 class="poster-title" itemprop="name">([^<]+)</h3>.*?<img.*?src="([^"]+)"'
     movies = re.findall(pattern, html, re.DOTALL)
     
-    found_movies = []
+    found = []
     for link, title, thumb in movies:
         full_link = link if link.startswith('http') else BASE_URL + link
-        found_movies.append({
-            'title': title.strip(),
-            'url': full_link,
-            'thumb': thumb
-        })
-    return found_movies
+        found.append({'title': title.strip(), 'url': full_link, 'thumb': thumb, 'type': 'movie'})
+    return found
 
-def get_video_sources(movie_url):
-    print(f"Mencari sumber video untuk: {movie_url}")
+def get_lk21_video(movie_url):
     html = get_html(movie_url)
-    
-    # Berdasarkan riset terbaru: Link player ada di tag <a> yang mengarah ke playeriframe.sbs
-    # Polanya: <a ... href="https://playeriframe.sbs/iframe/..." ...>
     player_pattern = r'href="(https://playeriframe.sbs/iframe/[^"]+)"'
     players = re.findall(player_pattern, html)
-    
-    if players:
-        # Kita ambil yang pertama saja (biasanya P2P atau Hydrax)
-        print(f"Ditemukan {len(players)} player.")
-        return players[0]
-        
-    return None
+    return players[0] if players else None
 
-def main():
-    print("=== LK21 KODI ADDON SIMULATOR ===")
+def parse_m3u(url):
+    print(f"Parsing M3U dari: {url}")
+    content = get_html(url)
+    channels = []
+    # Simple M3U Parser
+    # #EXTINF:-1 tvg-logo="url" group-title="group",Name
+    # url
+    pattern = r'#EXTINF:.*?,(.*?)\n(http.*?)$'
+    matches = re.findall(pattern, content, re.MULTILINE)
     
-    # 1. Ambil List Film di halaman depan (Hanya contoh halaman terbaru)
-    latest_url = f"{BASE_URL}/latest"
-    try:
-        movies = list_movies(latest_url)
-        
-        if not movies:
-            print("Gagal mengambil daftar film. Cek koneksi atau website mungkin berubah.")
-            return
+    for name, stream_url in matches[:40]: # Ambil 40 saja agar tidak lambat
+        channels.append({
+            'title': name.strip(),
+            'url': stream_url.strip(),
+            'thumb': "", # Bisa di-improve dengan regex tvg-logo
+            'type': 'live'
+        })
+    return channels
 
-        # Ambil 3 film pertama saja untuk contoh
-        for i, movie in enumerate(movies[:3]):
-            print(f"\n[{i+1}] {movie['title']}")
-            print(f"    Info Link: {movie['url']}")
-            
-            # 2. Coba bedah sumber videonya
-            video_link = get_video_sources(movie['url'])
-            if video_link:
-                print(f"    HASIL SCRAPE VIDEO: {video_link}")
-            else:
-                print("    HASIL: Gagal menemukan link video (butuh analisa lanjutan).")
-                
-    except Exception as e:
-        print(f"Error: {e}")
+def simulator():
+    print("=== NYETPLIX KODI ADDON SIMULATOR ===")
+    print("1. Movies (LK21)")
+    print("2. TV Indonesia (Live)")
+    print("3. Sports (Live)")
+    
+    choice = input("Pilih Menu: ")
+    
+    if choice == "1":
+        items = list_lk21_movies(f"{BASE_URL}/latest")
+        for i, item in enumerate(items[:5]):
+            print(f"[{i+1}] {item['title']}")
+            if input("Putar? (y/n): ") == "y":
+                print(f"Streaming link: {get_lk21_video(item['url'])}")
+    elif choice == "2":
+        items = parse_m3u(IPTV_INDO_URL)
+        for i, item in enumerate(items[:10]):
+            print(f"[{i+1}] {item['title']} -> {item['url']}")
+    elif choice == "3":
+        items = parse_m3u(IPTV_SPORTS_URL)
+        for i, item in enumerate(items[:10]):
+            print(f"[{i+1}] {item['title']} -> {item['url']}")
 
 if __name__ == "__main__":
-    main()
+    # Jika dijalankan di Kodi, gunakan logika Kodi. Jika di terminal, gunakan simulator.
+    if len(sys.argv) > 1 and sys.argv[1].startswith("plugin://"):
+        # Logika Kodi (akan diimplementasikan jika user ingin mencoba di aplikasi)
+        pass
+    else:
+        simulator()

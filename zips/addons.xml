@@ -24,8 +24,8 @@
         <provides>video</provides>
     </extension>
     <extension point="xbmc.addon.metadata">
-        <summary>Nonton Film Sub Indo dari LK21</summary>
-        <description>Addon ini mengambil konten dari tv8.lk21official.cc secara langsung.</description>
+        <summary>Nonton Film LK21 &amp; Live IPTV</summary>
+        <description>Addon untuk menonton film terbaru dari LK21 dan saluran TV Indonesia serta Sports secara Live.</description>
         <platform>all</platform>
         <assets>
             <icon>icon.png</icon>
