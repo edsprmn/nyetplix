@@ -148,29 +148,45 @@ def list_jav_movies(page_url):
         return []
         
     found = []
-    # Pola: <a href="..."><img src="..."> <span class="...">Title</span>
-    # Mencari pola kontainer video
-    articles = re.findall(r'<div[^>]*class=["\'][^"\']*col[^"\']*["\'][^>]*>(.*?)</div>\s*</div>', html, re.DOTALL)
+    # Pola: <a href="video_url" class="video-tmb"><img data-src="thumb_url">...<a class="video-link" title="title">
+    pattern = r'href=["\'](https?://javtiful\.com/video/[^"\']+)["\'][^>]*class="[^"]*video-tmb[^"]*".*?data-src=["\']([^"\']+)["\'].*?class="[^"]*video-link[^"]*"[^>]*title=["\']([^"\']+)["\']'
+    matches = re.findall(pattern, html, re.DOTALL)
     
-    if not articles:
-        # Fallback pola umum links + images
-        matches = re.findall(r'href=["\'](https?://javtiful\.com/video/[^"\']+)["\'][^>]*>.*?src=["\']([^"\']+)["\'].*?class=["\'][^"\']*title[^"\']*["\'][^>]*>(.*?)</span>', html, re.DOTALL)
-        for link, thumb, title in matches:
-            found.append({'title': title.strip(), 'url': link, 'thumb': thumb})
-    else:
-        for art in articles:
-            link_m = re.search(r'href=["\']([^"\']+)["\']', art)
-            img_m = re.search(r'src=["\']([^"\']+)["\']', art)
-            title_m = re.search(r'<(?:span|h[23])[^>]*class=["\'][^"\']*title[^"\']*["\'][^>]*>(.*?)</', art)
-            
-            if link_m and img_m:
-                link = link_m.group(1)
-                thumb = img_m.group(1)
-                title = title_m.group(1).strip() if title_m else "Video"
-                if not link.startswith('http'): link = JAV_URL + link
-                found.append({'title': title, 'url': link, 'thumb': thumb})
+    for link, thumb, title in matches:
+        found.append({'title': title.strip(), 'url': link, 'thumb': thumb})
         
+    if not found:
+        # Fallback pola lebih fleksibel jika pola utama gagal
+        matches = re.findall(r'href=["\']([^"\']+/video/[^"\']+)["\'].*?data-src=["\']([^"\']+)["\'].*?title=["\']([^"\']+)["\']', html, re.DOTALL)
+        for link, thumb, title in matches:
+            if not link.startswith('http'): link = JAV_URL + link
+            found.append({'title': title.strip(), 'url': link, 'thumb': thumb})
+            
     return found
+
+def get_jav_video(video_url):
+    """Resolver for JAVtiful.com"""
+    html = fetch(video_url)
+    if not html: return None
+    
+    # 1. Cari URL embed
+    embed_match = re.search(r'data-embed-url=["\']([^"\']+)["\']', html)
+    if embed_match:
+        embed_url = embed_match.group(1)
+        embed_html = fetch(embed_url)
+        if embed_html:
+            # 2. Cari playlist/source di halaman embed
+            # Pola: const source = '...'; atau response.playlists = '...';
+            source_match = re.search(r'(?:source|playlist|playlists)\s*[:=]\s*[\'"]([^\'"]+)[\'"]', embed_html)
+            if source_match:
+                return source_match.group(1)
+    
+    # Fallback: Cari langsung .m3u8 di halaman utama jika ada
+    m3u8_match = re.search(r'["\'](https?://[^"\']+\.m3u8[^"\']*)["\']', html)
+    if m3u8_match:
+        return m3u8_m.group(1)
+        
+    return None
 
 def get_lk21_video(movie_url):
     html = fetch(movie_url)
@@ -295,7 +311,7 @@ def list_content_menu(base_url, page, site):
 
     for item in items:
         # Telenovela plays direct (usually), LK21/Series uses resolver
-        action = 'play_direct' if site == 'jav' else 'play_lk21'
+        action = 'play_jav' if site == 'jav' else 'play_lk21'
         add_item(item['title'], {'action': action, 'url': item['url']}, is_folder=False, thumbnail=item['thumb'])
     
     # Tombol Next Page Otomatis
@@ -355,6 +371,10 @@ def router(param_string):
         iptv_menu(params.get('url'), params.get('mode', 'all'))
     elif action == 'play_lk21':
         v_url = get_lk21_video(params.get('url'))
+        if v_url:
+            play(v_url)
+    elif action == 'play_jav':
+        v_url = get_jav_video(params.get('url'))
         if v_url:
             play(v_url)
     elif action == 'play_direct':
