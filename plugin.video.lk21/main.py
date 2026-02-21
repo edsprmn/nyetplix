@@ -25,15 +25,15 @@ IPTV_SPORTS_URL = "https://iptv-org.github.io/iptv/categories/sports.m3u"
 
 # Konten Mapping
 MOVIES_CATS = [
-    ("Movies Terbaru", f"{LK21_URL}/latest"),
+    ("Movies Terbaru", f"{LK21_URL}/latest/"),
     ("Action", f"{LK21_URL}/genre/action/"),
-    ("Anime", f"{LK21_URL}/genre/animation/"),
-    ("Horror", f"{LK21_URL}/genre/horror/"),
-    ("Comedy", f"{LK21_URL}/genre/comedy/"),
-    ("Sci-Fi", f"{LK21_URL}/genre/sci-fi/"),
-    ("Romance", f"{LK21_URL}/genre/romance/"),
-    ("Bluray", f"{LK21_URL}/quality/bluray/"),
-    ("Populer", f"{LK21_URL}/populer/")
+    ("Populer", f"{LK21_URL}/populer/"),
+    ("Top Rating", f"{LK21_URL}/rating/"),
+    ("Unggulan", f"{LK21_URL}/top-movie-today/"),
+    ("Rekomendasi", f"{LK21_URL}/rekomendasi-film-pintar/"),
+    ("Berdasarkan Genre", "genres"),
+    ("Berdasarkan Negara", "countries"),
+    ("Berdasarkan Tahun", "years")
 ]
 
 SERIES_CATS = [
@@ -108,47 +108,43 @@ def fetch(url, payload=None, extra_headers=None):
 
 # --- Scraper Logic ---
 
-def list_lk21_movies(page_url, current_page=1):
-    html = fetch(page_url)
-    if not html:
+    return found
+
+def list_lk21_folders(folder_type):
+    """Returns a list of genres, countries or years for LK21."""
+    if folder_type == 'genres':
+        # Hardcoded from research to avoid extra fetch, common ones
+        items = [
+            ("Action", f"{LK21_URL}/genre/action/"), ("Adventure", f"{LK21_URL}/genre/adventure/"),
+            ("Animation", f"{LK21_URL}/genre/animation/"), ("Biography", f"{LK21_URL}/genre/biography/"),
+            ("Comedy", f"{LK21_URL}/genre/comedy/"), ("Crime", f"{LK21_URL}/genre/crime/"),
+            ("Documentary", f"{LK21_URL}/genre/documentary/"), ("Drama", f"{LK21_URL}/genre/drama/"),
+            ("Family", f"{LK21_URL}/genre/family/"), ("Fantasy", f"{LK21_URL}/genre/fantasy/"),
+            ("History", f"{LK21_URL}/genre/history/"), ("Horror", f"{LK21_URL}/genre/horror/"),
+            ("Musical", f"{LK21_URL}/genre/musical/"), ("Mystery", f"{LK21_URL}/genre/mystery/"),
+            ("Romance", f"{LK21_URL}/genre/romance/"), ("Sci-Fi", f"{LK21_URL}/genre/sci-fi/"),
+            ("Sport", f"{LK21_URL}/genre/sport/"), ("Thriller", f"{LK21_URL}/genre/thriller/"),
+            ("War", f"{LK21_URL}/genre/war/"), ("Western", f"{LK21_URL}/genre/western/")
+        ]
+    elif folder_type == 'countries':
+        items = [
+            ("United States", f"{LK21_URL}/country/usa/"), ("United Kingdom", f"{LK21_URL}/country/uk/"),
+            ("South Korea", f"{LK21_URL}/country/south-korea/"), ("Japan", f"{LK21_URL}/country/japan/"),
+            ("India", f"{LK21_URL}/country/india/"), ("China", f"{LK21_URL}/country/china/"),
+            ("Hong Kong", f"{LK21_URL}/country/hong-kong/"), ("Indonesia", f"{LK21_URL}/country/indonesia/"),
+            ("Thailand", f"{LK21_URL}/country/thailand/"), ("France", f"{LK21_URL}/country/france/"),
+            ("Canada", f"{LK21_URL}/country/canada/"), ("Germany", f"{LK21_URL}/country/germany/"),
+            ("Australia", f"{LK21_URL}/country/australia/"), ("Malaysia", f"{LK21_URL}/country/malaysia/"),
+            ("Philippines", f"{LK21_URL}/country/philippines/"), ("Taiwan", f"{LK21_URL}/country/taiwan/"),
+            ("Singapore", f"{LK21_URL}/country/singapore/"), ("Russia", f"{LK21_URL}/country/russia/")
+        ]
+    elif folder_type == 'years':
+        # Range dari 2026 ke 2010
+        items = [(str(y), f"{LK21_URL}/year/{y}/") for y in range(2026, 2009, -1)]
+    else:
         return []
         
-    found = []
-    # Temukan setiap blok <article> terlebih dahulu
-    articles = re.findall(r'<article[^>]*>(.*?)</article>', html, re.DOTALL)
-    
-    for art in articles:
-        # Ekstrak Link: cari href pertama
-        link = ""
-        link_match = re.search(r'href=["\']([^"\']+)["\']', art)
-        if link_match:
-            link = link_match.group(1)
-            # Handle relative links based on domain (LK21 or Series)
-            domain = SERIES_URL if "nontondrama" in page_url else LK21_URL
-            if not link.startswith('http'):
-                link = domain + link
-        
-        # Ekstrak Judul: cari di dalam h3
-        title = "No Title"
-        title_match = re.search(r'<h3[^>]*>([^<]+)</h3>', art)
-        if title_match:
-            title = title_match.group(1).strip()
-            
-        # Ekstrak Thumbnail
-        thumb = ""
-        img_matches = re.findall(r'src=["\']([^"\']+)["\']', art)
-        for img in img_matches:
-            if any(k in img for k in ["poster", "thumb", "uploads"]):
-                thumb = img
-                break
-        if not thumb and img_matches:
-            thumb = img_matches[0]
-            
-        if link and "/page/" not in link:
-            if not any(f['url'] == link for f in found):
-                found.append({'title': title, 'url': link, 'thumb': thumb})
-    
-    return found
+    return [{'title': label, 'url': url, 'thumb': ""} for label, url in items]
 
 def list_jav_movies(page_url):
     """Refined scraper for javtiful.com"""
@@ -330,7 +326,10 @@ def main_menu():
 def folder_menu(ftype):
     if ftype == 'movies':
         for label, url in MOVIES_CATS:
-            add_item(label, {'action': 'list_content', 'url': url, 'page': 1, 'site': 'lk21'})
+            if url in ['genres', 'countries', 'years']:
+                add_item(label, {'action': 'list_subfolders', 'type': url, 'site': 'lk21'})
+            else:
+                add_item(label, {'action': 'list_content', 'url': url, 'page': 1, 'site': 'lk21'})
     elif ftype == 'series':
         for label, url in SERIES_CATS:
             add_item(label, {'action': 'list_content', 'url': url, 'page': 1, 'site': 'series'})
@@ -371,13 +370,24 @@ def list_content_menu(base_url, page, site):
             # Jika folder (Aktris/Genre), sesi berikutnya list_content video
             add_item(item['title'], {'action': 'list_content', 'url': item['url'], 'page': 1, 'site': 'jav'}, is_folder=True, thumbnail=item['thumb'])
         else:
-            # Jika video, gunakan resolver
+            # Jika video
             action = 'play_jav' if site == 'jav' else 'play_lk21'
             add_item(item['title'], {'action': action, 'url': item['url']}, is_folder=False, thumbnail=item['thumb'])
     
     # Tombol Next Page Otomatis
-    if items:
+    if items and not is_jav_folder: # Subfolder list JAV tidak punya pagination di source
         add_item(f"Halaman Berikutnya ({page + 1})", {'action': 'list_content', 'url': base_url, 'page': page + 1, 'site': site})
+        
+    xbmcplugin.endOfDirectory(HANDLE)
+
+def list_subfolders_menu(folder_type, site):
+    """Menampilkan daftar Genre, Tahun, atau Negara sebagai folder visual."""
+    if site == 'lk21':
+        items = list_lk21_folders(folder_type)
+        
+    for item in items:
+        # Link ke list_content film
+        add_item(item['title'], {'action': 'list_content', 'url': item['url'], 'page': 1, 'site': site}, is_folder=True, thumbnail=item['thumb'])
         
     xbmcplugin.endOfDirectory(HANDLE)
 
@@ -428,6 +438,8 @@ def router(param_string):
         folder_menu(params.get('type'))
     elif action == 'list_content':
         list_content_menu(params.get('url'), params.get('page'), params.get('site'))
+    elif action == 'list_subfolders':
+        list_subfolders_menu(params.get('type'), params.get('site'))
     elif action == 'iptv':
         iptv_menu(params.get('url'), params.get('mode', 'all'))
     elif action == 'play_lk21':
