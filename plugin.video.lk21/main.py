@@ -29,10 +29,12 @@ def fetch(url):
         'Referer': BASE_URL
     }
     if KODI:
+        xbmc.log(f"NYETPLIX FETCH: {url}", xbmc.LOGINFO)
         try:
             r = requests.get(url, headers=headers, timeout=10)
             return r.text
-        except:
+        except Exception as e:
+            xbmc.log(f"NYETPLIX FETCH ERROR: {str(e)}", xbmc.LOGERROR)
             return ""
     else:
         command = ['curl', '-s', '-L', '-A', headers['User-Agent'], '-H', f"Referer: {BASE_URL}", url]
@@ -43,15 +45,23 @@ def fetch(url):
 
 def list_lk21_movies(page_url):
     html = fetch(page_url)
+    if not html:
+        return [], None
+        
     # Temukan setiap blok <article> untuk setiap film
     articles = re.findall(r'<article[^>]*>.*?</article>', html, re.DOTALL)
+    if KODI: xbmc.log(f"NYETPLIX LK21 ARTICLES FOUND: {len(articles)}", xbmc.LOGINFO)
     
     found = []
     for art in articles:
         # Ekstrak Link, Judul, dan Thumbnail dari dalam article
-        link_match = re.search(r'href="([^"]+)" itemprop="url"', art)
-        thumb_match = re.search(r'src="([^"]+)"', art)
-        title_match = re.search(r'<h3 class="poster-title"[^>]*>([^<]+)</h3>', art)
+        # Menggunakan regex yang sangat fleksibel (non-greedy)
+        link_match = re.search(r'href=["\']([^"\']+)["\'][^>]*itemprop=["\']url["\']', art)
+        if not link_match:
+            link_match = re.search(r'itemprop=["\']url["\'][^>]*href=["\']([^"\']+)["\']', art)
+            
+        thumb_match = re.search(r'src=["\']([^"\']+)["\']', art)
+        title_match = re.search(r'class=["\']poster-title["\'][^>]*>([^<]+)</h3>', art)
         
         if link_match and thumb_match and title_match:
             link = link_match.group(1)
@@ -62,8 +72,8 @@ def list_lk21_movies(page_url):
             if not any(f['url'] == full_link for f in found):
                 found.append({'title': title, 'url': full_link, 'thumb': thumb})
     
-    # Cari link "Next Page" dengan pola yang lebih fleksibel (&raquo; atau »)
-    next_match = re.search(r'<a href="([^"]+)">(&raquo;|»|Next)</a>', html)
+    # Cari link "Next Page" dengan pola yang lebih fleksibel
+    next_match = re.search(r'<a href=["\']([^"\']+)["\'][^>]*>(?:&raquo;|»|Next)</a>', html)
     next_page = None
     if next_match:
         next_page = next_match.group(1)
@@ -110,10 +120,17 @@ def get_lk21_video(movie_url):
 
 def parse_m3u(url):
     content = fetch(url)
+    if not content:
+        return []
+        
     channels = []
-    pattern = r'#EXTINF:.*?,(.*?)\n(http.*?)$'
-    matches = re.findall(pattern, content, re.MULTILINE)
-    for name, stream_url in matches[:200]: # Naikkan limit ke 200
+    # Regex yang lebih handal untuk M3U (menangani variasi atribut dan multipis liness)
+    # Mencari #EXTINF diikuti oleh baris URL, mengabaikan baris kosong di antaranya
+    segments = re.findall(r'#EXTINF:[^\n]*,([^\n\r]+)[\s\r\n]+(http[^\s\r\n]+)', content, re.MULTILINE)
+    
+    if KODI: xbmc.log(f"NYETPLIX M3U CHANNELS FOUND: {len(segments)}", xbmc.LOGINFO)
+    
+    for name, stream_url in segments[:250]:
         channels.append({'title': name.strip(), 'url': stream_url.strip()})
     return channels
 
