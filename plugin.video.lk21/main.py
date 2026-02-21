@@ -186,6 +186,12 @@ def list_jav_folders(page_url):
         matches = re.findall(pattern, html, re.DOTALL)
         for link, thumb, title in matches:
             found.append({'title': title.strip(), 'url': link, 'thumb': thumb})
+    elif "/channels" in page_url:
+        # Pola Channel: <a href=".../channel/name"><img src="thumb">...<a ...>Name</a>
+        pattern = r'href=["\'](https?://javtiful\.com/channel/[^"\']+)["\']><img src=["\']([^"\']+)["\'].*?class="[^"]*text-black[^"]*">([^<]+)</a>'
+        matches = re.findall(pattern, html, re.DOTALL)
+        for link, thumb, title in matches:
+            found.append({'title': title.strip(), 'url': link, 'thumb': thumb})
     elif "/categories" in page_url:
         # Pola Kategori: <a href=".../videos/cat" class="category-tmb"> <img src="thumb"> ... label-category">Name</span>
         pattern = r'href=["\'](https?://javtiful\.com/videos/[^"\']+)["\'][^>]*class="category-tmb".*?img src=["\']([^"\']+)["\'].*?label-category">([^<]+)</span>'
@@ -347,7 +353,7 @@ def list_content_menu(base_url, page, site):
             request_url = f"{clean_url}/page/{page}/"
 
     # Tentukan scraper berdasarkan jenis konten
-    is_jav_folder = (site == 'jav' and any(k in base_url for k in ["/actresses", "/categories"]))
+    is_jav_folder = (site == 'jav' and any(k in base_url for k in ["/actresses", "/categories", "/channels"]))
     
     if is_jav_folder:
         items = list_jav_folders(request_url)
