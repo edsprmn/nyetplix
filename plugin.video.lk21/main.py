@@ -31,16 +31,18 @@ def fetch(url):
     if KODI:
         xbmc.log(f"NYETPLIX FETCH: {url}", xbmc.LOGINFO)
         try:
-            r = requests.get(url, headers=headers, timeout=10)
+            # Bypass SSL (verify=False) untuk menghindari error sertifikat di Kodi
+            r = requests.get(url, headers=headers, timeout=20, verify=False)
             if r.status_code != 200:
-                xbmcgui.Dialog().notification("Nyetplix Error", f"Server return {r.status_code}", xbmcgui.NOTIFICATION_ERROR, 3000)
+                xbmcgui.Dialog().notification("Nyetplix Error", f"HTTP {r.status_code}", xbmcgui.NOTIFICATION_ERROR, 3000)
             return r.text
         except Exception as e:
+            err_msg = str(e)[:30] # Ambil potongan pesan error
             xbmc.log(f"NYETPLIX FETCH ERROR: {str(e)}", xbmc.LOGERROR)
-            xbmcgui.Dialog().notification("Nyetplix Error", "Koneksi Bermasalah", xbmcgui.NOTIFICATION_ERROR, 3000)
+            xbmcgui.Dialog().notification("Nyetplix Error", f"Gagal: {err_msg}", xbmcgui.NOTIFICATION_ERROR, 5000)
             return ""
     else:
-        command = ['curl', '-s', '-L', '-A', headers['User-Agent'], '-H', f"Referer: {BASE_URL}", url]
+        command = ['curl', '-s', '-k', '-L', '-A', headers['User-Agent'], '-H', f"Referer: {BASE_URL}", url]
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         return result.stdout if result.returncode == 0 else ""
 
