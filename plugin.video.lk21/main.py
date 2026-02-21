@@ -48,37 +48,35 @@ def list_lk21_movies(page_url):
     if not html:
         return [], None
         
-    # Temukan setiap blok <article> untuk setiap film
-    articles = re.findall(r'<article[^>]*>.*?</article>', html, re.DOTALL)
-    if KODI: xbmc.log(f"NYETPLIX LK21 ARTICLES FOUND: {len(articles)}", xbmc.LOGINFO)
+    # Mencoba mencari link film dengan cara yang sangat luas
+    # Mencari href yang menuju ke halaman detail film dan teks judul di dekatnya
+    # Pola: href="link" ... poster-title">Judul</h3>
+    pattern = r'href=["\']([^"\']+/([^"\'/]+))["\'][^>]*>.*?poster-title["\'][^>]*>([^<]+)</h3>'
+    movies_raw = re.findall(pattern, html, re.DOTALL)
     
     found = []
-    for art in articles:
-        # Ekstrak Link, Judul, dan Thumbnail dari dalam article
-        # Menggunakan regex yang sangat fleksibel (non-greedy)
-        link_match = re.search(r'href=["\']([^"\']+)["\'][^>]*itemprop=["\']url["\']', art)
-        if not link_match:
-            link_match = re.search(r'itemprop=["\']url["\'][^>]*href=["\']([^"\']+)["\']', art)
-            
-        thumb_match = re.search(r'src=["\']([^"\']+)["\']', art)
-        title_match = re.search(r'class=["\']poster-title["\'][^>]*>([^<]+)</h3>', art)
+    for link, slug, title in movies_raw:
+        # Cari thumbnail di sekitar artikel tersebut (jika ada)
+        # Menggunakan pencarian berdasarkan slug film agar lebih akurat
+        thumb_pattern = r'src=["\']([^"\']+' + re.escape(slug) + r'[^"\']+)["\']'
+        thumb_match = re.search(thumb_pattern, html)
+        thumb = thumb_match.group(1) if thumb_match else ""
         
-        if link_match and thumb_match and title_match:
-            link = link_match.group(1)
-            thumb = thumb_match.group(1)
-            title = title_match.group(1).strip()
-            
-            full_link = link if link.startswith('http') else BASE_URL + link
-            if not any(f['url'] == full_link for f in found):
-                found.append({'title': title, 'url': full_link, 'thumb': thumb})
+        full_link = link if link.startswith('http') else BASE_URL + link
+        if not any(f['url'] == full_link for f in found):
+            found.append({'title': title.strip(), 'url': full_link, 'thumb': thumb})
     
-    # Cari link "Next Page" dengan pola yang lebih fleksibel
-    next_match = re.search(r'<a href=["\']([^"\']+)["\'][^>]*>(?:&raquo;|»|Next)</a>', html)
-    next_page = None
-    if next_match:
-        next_page = next_match.group(1)
-        if not next_page.startswith('http'):
-            next_page = BASE_URL + next_page
+    if not found:
+        # Fallback regex jika pola di atas gagal (cara paling basic)
+        basic_links = re.findall(r'href=["\'](https://tv8.lk21official.cc/[^"\'/]+)["\'] itemprop="url"', html)
+        for bl in basic_links:
+            found.append({'title': bl.split('/')[-1].replace('-', ' ').title(), 'url': bl, 'thumb': ""})
+
+    # Cari link "Next Page"
+    next_match = re.search(r'href=["\']([^"\']+/page/\d+)["\']', html)
+    next_page = next_match.group(1) if next_match else None
+    if next_page and not next_page.startswith('http'):
+        next_page = BASE_URL + next_page
 
     return found, next_page
 
@@ -124,15 +122,24 @@ def parse_m3u(url):
         return []
         
     channels = []
-    # Regex yang lebih handal untuk M3U (menangani variasi atribut dan multipis liness)
-    # Mencari #EXTINF diikuti oleh baris URL, mengabaikan baris kosong di antaranya
-    segments = re.findall(r'#EXTINF:[^\n]*,([^\n\r]+)[\s\r\n]+(http[^\s\r\n]+)', content, re.MULTILINE)
-    
-    if KODI: xbmc.log(f"NYETPLIX M3U CHANNELS FOUND: {len(segments)}", xbmc.LOGINFO)
-    
-    for name, stream_url in segments[:250]:
-        channels.append({'title': name.strip(), 'url': stream_url.strip()})
-    return channels
+    # Menggunakan sistem split berdasarkan #EXTINF agar lebih akurat dan tidak terpengaruh baris kosong
+    items = content.split("#EXTINF")
+    for item in items[1:]: # Lewati header #EXTM3U
+        try:
+            # Format: :-1 group-title="...",Nama Channel\nURL
+            info_part, stream_url = item.split("http", 1)
+            stream_url = "http" + stream_url.split("\n")[0].split("\r")[0].strip()
+            
+            # Ambil nama channel (setelah koma terakhir di baris pertama)
+            name = info_part.split(",")[-1].split("\n")[0].split("\r")[0].strip()
+            
+            if name and stream_url:
+                channels.append({'title': name, 'url': stream_url})
+        except:
+            continue
+            
+    if KODI: xbmc.log(f"NYETPLIX M3U CHANNELS FOUND: {len(channels)}", xbmc.LOGINFO)
+    return channels[:300]
 
 # --- Kodi UI Logic ---
 
