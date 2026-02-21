@@ -17,8 +17,21 @@ except ImportError:
 
 # URL Dasar
 BASE_URL = "https://tv8.lk21official.cc"
-IPTV_INDO_URL = "https://raw.githubusercontent.com/mgi24/tvdigital/main/idwork.m3u"
+IPTV_INDO_URL = "https://iptv-org.github.io/iptv/countries/id.m3u"
 IPTV_SPORTS_URL = "https://iptv-org.github.io/iptv/categories/sports.m3u"
+
+# List Kategori (Berdasarkan riset browser)
+GENRES = ["Action", "Adventure", "Animation", "Biography", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Musical", "Mystery", "Romance", "Sci-Fi", "Sport", "Thriller", "War", "Western"]
+COUNTRIES = ["USA", "China", "India", "Japan", "South-Korea", "Thailand"]
+YEARS = [str(y) for y in range(2026, 2010, -1)]
+SERIES_CATS = [
+    ("Daftar Series", "/nontondrama"),
+    ("Series Terbaru", "/nontondrama?page=latest-series"),
+    ("Series Ongoing", "/nontondrama?page=series/ongoing"),
+    ("Series Complete", "/nontondrama?page=series/complete"),
+    ("Series Asian", "/nontondrama?page=series/asian"),
+    ("Series West", "/nontondrama?page=series/west")
+]
 
 HANDLE = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 0
 
@@ -174,10 +187,40 @@ def add_item(label, url_params, is_folder=True, thumbnail=""):
     xbmcplugin.addDirectoryItem(handle=HANDLE, url=url, listitem=list_item, isFolder=is_folder)
 
 def main_menu():
-    add_item("Movies (LK21)", {'action': 'lk21_menu', 'url': f"{BASE_URL}/latest"})
-    add_item("TV Indonesia", {'action': 'iptv', 'url': IPTV_INDO_URL})
-    add_item("Sports Live", {'action': 'iptv', 'url': IPTV_SPORTS_URL})
+    add_item("🔍 Cari Film (Search)", {'action': 'search_lk21'})
+    add_item("🎬 Movies Terbaru", {'action': 'lk21_menu', 'url': f"{BASE_URL}/latest"})
+    add_item("📂 Kategori Film (Genre)", {'action': 'submenu', 'type': 'genre'})
+    add_item("🌍 Negara (Country)", {'action': 'submenu', 'type': 'country'})
+    add_item("📅 Tahun (Year)", {'action': 'submenu', 'type': 'year'})
+    add_item("📺 Series & Drama", {'action': 'submenu', 'type': 'series'})
+    add_item("🇮🇩 TV Indonesia", {'action': 'iptv', 'url': IPTV_INDO_URL, 'mode': 'indo'})
+    add_item("⚽ Sports Live (beIN/SPOTV)", {'action': 'iptv', 'url': IPTV_SPORTS_URL, 'mode': 'sports'})
     xbmcplugin.endOfDirectory(HANDLE)
+
+def submenu(stype):
+    if stype == 'genre':
+        for g in GENRES:
+            add_item(g, {'action': 'lk21_menu', 'url': f"{BASE_URL}/genre/{g.lower()}"})
+    elif stype == 'country':
+        for c in COUNTRIES:
+            add_item(c, {'action': 'lk21_menu', 'url': f"{BASE_URL}/country/{c.lower()}"})
+    elif stype == 'year':
+        for y in YEARS:
+            add_item(y, {'action': 'lk21_menu', 'url': f"{BASE_URL}/year/{y}"})
+    elif stype == 'series':
+        for label, path in SERIES_CATS:
+            add_item(label, {'action': 'lk21_menu', 'url': f"{BASE_URL}{path}"})
+    xbmcplugin.endOfDirectory(HANDLE)
+
+def search_lk21():
+    kb = xbmc.Keyboard('', 'Masukkan Judul Film')
+    kb.doModal()
+    if kb.isConfirmed():
+        query = kb.getText()
+        if query:
+            # Format search di lk21 biasanya ?s=query
+            search_url = f"{BASE_URL}/?s={urllib.parse.quote(query)}"
+            lk21_menu(search_url)
 
 def lk21_menu(url):
     movies, next_page = list_lk21_movies(url)
@@ -189,8 +232,33 @@ def lk21_menu(url):
         
     xbmcplugin.endOfDirectory(HANDLE)
 
-def iptv_menu(url):
+def iptv_menu(url, mode='all'):
     channels = parse_m3u(url)
+    
+    # Filter untuk Sports jika diinginkan
+    if mode == 'sports':
+        # Prioritaskan beIN dan SPOTV
+        priority = []
+        others = []
+        keywords = ["BEIN", "SPOTV", "FOX SPORTS", "ESPN", "STAR SPORTS", "PREMIER LEAGUE"]
+        for ch in channels:
+            if any(k in ch['title'].upper() for k in keywords):
+                priority.append(ch)
+            else:
+                others.append(ch)
+        # Tampilkan yang prioritas saja atau gabungan?
+        # User minta "hanya stasiun terkenal", jadi kita tampilkan yang match saja.
+        channels = priority if priority else others[:100]
+    elif mode == 'indo':
+        # Filter untuk Transvision/MNC style (General/Premium tags)
+        premium_keywords = ["ANTV", "INDOSIAR", "TRANS", "METRO", "MNCTV", "SCTV", "RCTI", "GTV", "BTV"]
+        priority = []
+        for ch in channels:
+            if any(k in ch['title'].upper() for k in premium_keywords):
+                priority.append(ch)
+        # Jika ada yang cocok tampilkan di atas
+        channels = priority + [c for c in channels if c not in priority]
+
     for ch in channels:
         add_item(ch['title'], {'action': 'play_direct', 'url': ch['url']}, is_folder=False)
     xbmcplugin.endOfDirectory(HANDLE)
@@ -209,8 +277,12 @@ def router(param_string):
         main_menu()
     elif action == 'lk21_menu':
         lk21_menu(params.get('url'))
+    elif action == 'submenu':
+        submenu(params.get('type'))
+    elif action == 'search_lk21':
+        search_lk21()
     elif action == 'iptv':
-        iptv_menu(params.get('url'))
+        iptv_menu(params.get('url'), params.get('mode', 'all'))
     elif action == 'play_lk21':
         video_url = get_lk21_video(params.get('url'))
         if video_url:
