@@ -91,7 +91,7 @@ def fetch(url, payload=None, extra_headers=None):
                 r = requests.get(url, headers=headers, timeout=20, verify=False)
             
             if r.status_code != 200:
-                xbmcgui.Dialog().notification("Nyetplix Error", f"HTTP {r.status_code}", xbmcgui.NOTIFICATION_ERROR, 3000)
+                xbmcgui.Dialog().notification("NYETPLIX Error", f"HTTP {r.status_code}", xbmcgui.NOTIFICATION_ERROR, 3000)
             return r.text
         except Exception as e:
             err_msg = str(e)[:30]
@@ -511,7 +511,7 @@ if __name__ == "__main__":
         if KODI:
             import traceback
             error_msg = traceback.format_exc()
-            xbmcgui.Dialog().ok("Nyetplix Error", f"Terjadi kesalahan:\n{str(e)}\n\nKirimkan pesan ini ke developer.")
+            xbmcgui.Dialog().ok("NYETPLIX Error", f"Terjadi kesalahan:\n{str(e)}\n\nKirimkan pesan ini ke developer.")
             xbmc.log(f"NYETPLIX ERROR: {error_msg}", xbmc.LOGERROR)
         else:
             raise e
