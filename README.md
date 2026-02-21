@@ -2,9 +2,13 @@
 
 Selamat datang di **Nyetplix**! Ini adalah repository kustom untuk plugin Kodi Anda sendiri.
 
-## Cara Menggunakan di Kodi
+## Cara Menggunakan di Kodi 📺
 
-### 1. Tambahkan Source di Kodi
+> [!IMPORTANT]
+> Untuk panduan instalasi lengkap dengan gambar dan langkah detail, silakan baca:
+> **[PANDUAN INSTALASI (INSTALL.MD)](file:///Users/edypramono/Documents/EP/kodi/nyetplix/INSTALL.md)**
+
+### Ringkasan Cepat:
 1.  Buka **Settings** (ikon gerigi) di Kodi.
 2.  Pilih **File Manager**.
 3.  Klik **Add source**.
