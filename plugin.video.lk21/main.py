@@ -108,6 +108,46 @@ def fetch(url, payload=None, extra_headers=None):
 
 # --- Scraper Logic ---
 
+def list_lk21_movies(page_url, current_page=1):
+    html = fetch(page_url)
+    if not html:
+        return []
+        
+    found = []
+    # Temukan setiap blok <article> terlebih dahulu
+    articles = re.findall(r'<article[^>]*>(.*?)</article>', html, re.DOTALL)
+    
+    for art in articles:
+        # Ekstrak Link: cari href pertama
+        link = ""
+        link_match = re.search(r'href=["\']([^"\']+)["\']', art)
+        if link_match:
+            link = link_match.group(1)
+            # Handle relative links based on domain (LK21 or Series)
+            domain = SERIES_URL if "nontondrama" in page_url else LK21_URL
+            if not link.startswith('http'):
+                link = domain + link
+        
+        # Ekstrak Judul: cari di dalam h3
+        title = "No Title"
+        title_match = re.search(r'<h3[^>]*>([^<]+)</h3>', art)
+        if title_match:
+            title = title_match.group(1).strip()
+            
+        # Ekstrak Thumbnail
+        thumb = ""
+        img_matches = re.findall(r'src=["\']([^"\']+)["\']', art)
+        for img in img_matches:
+            if any(k in img for k in ["poster", "thumb", "uploads"]):
+                thumb = img
+                break
+        if not thumb and img_matches:
+            thumb = img_matches[0]
+            
+        if link and "/page/" not in link:
+            if not any(f['url'] == link for f in found):
+                found.append({'title': title, 'url': link, 'thumb': thumb})
+    
     return found
 
 def list_lk21_folders(folder_type):
