@@ -32,9 +32,12 @@ def fetch(url):
         xbmc.log(f"NYETPLIX FETCH: {url}", xbmc.LOGINFO)
         try:
             r = requests.get(url, headers=headers, timeout=10)
+            if r.status_code != 200:
+                xbmcgui.Dialog().notification("Nyetplix Error", f"Server return {r.status_code}", xbmcgui.NOTIFICATION_ERROR, 3000)
             return r.text
         except Exception as e:
             xbmc.log(f"NYETPLIX FETCH ERROR: {str(e)}", xbmc.LOGERROR)
+            xbmcgui.Dialog().notification("Nyetplix Error", "Koneksi Bermasalah", xbmcgui.NOTIFICATION_ERROR, 3000)
             return ""
     else:
         command = ['curl', '-s', '-L', '-A', headers['User-Agent'], '-H', f"Referer: {BASE_URL}", url]
@@ -48,35 +51,47 @@ def list_lk21_movies(page_url):
     if not html:
         return [], None
         
-    # Mencoba mencari link film dengan cara yang sangat luas
-    # Mencari href yang menuju ke halaman detail film dan teks judul di dekatnya
-    # Pola: href="link" ... poster-title">Judul</h3>
-    pattern = r'href=["\']([^"\']+/([^"\'/]+))["\'][^>]*>.*?poster-title["\'][^>]*>([^<]+)</h3>'
-    movies_raw = re.findall(pattern, html, re.DOTALL)
-    
     found = []
-    for link, slug, title in movies_raw:
-        # Cari thumbnail di sekitar artikel tersebut (jika ada)
-        # Menggunakan pencarian berdasarkan slug film agar lebih akurat
-        thumb_pattern = r'src=["\']([^"\']+' + re.escape(slug) + r'[^"\']+)["\']'
-        thumb_match = re.search(thumb_pattern, html)
-        thumb = thumb_match.group(1) if thumb_match else ""
-        
-        full_link = link if link.startswith('http') else BASE_URL + link
-        if not any(f['url'] == full_link for f in found):
-            found.append({'title': title.strip(), 'url': full_link, 'thumb': thumb})
+    # Temukan setiap blok <article> terlebih dahulu
+    articles = re.findall(r'<article[^>]*>(.*?)</article>', html, re.DOTALL)
     
-    if not found:
-        # Fallback regex jika pola di atas gagal (cara paling basic)
-        basic_links = re.findall(r'href=["\'](https://tv8.lk21official.cc/[^"\'/]+)["\'] itemprop="url"', html)
-        for bl in basic_links:
-            found.append({'title': bl.split('/')[-1].replace('-', ' ').title(), 'url': bl, 'thumb': ""})
-
-    # Cari link "Next Page"
-    next_match = re.search(r'href=["\']([^"\']+/page/\d+)["\']', html)
-    next_page = next_match.group(1) if next_match else None
-    if next_page and not next_page.startswith('http'):
-        next_page = BASE_URL + next_page
+    for art in articles:
+        # Ekstrak Link: cari href pertama
+        link = ""
+        link_match = re.search(r'href=["\']([^"\']+)["\']', art)
+        if link_match:
+            link = link_match.group(1)
+            if not link.startswith('http'):
+                link = BASE_URL + link
+        
+        # Ekstrak Judul: cari di dalam h3
+        title = "No Title"
+        title_match = re.search(r'<h3[^>]*>([^<]+)</h3>', art)
+        if title_match:
+            title = title_match.group(1).strip()
+            
+        # Ekstrak Thumbnail: cari src pertama yang bukan placeholder
+        thumb = ""
+        # Mencari gambar yang biasanya mengandung poster atau slug di URL-nya
+        img_matches = re.findall(r'src=["\']([^"\']+)["\']', art)
+        for img in img_matches:
+            if "poster" in img or "thumb" in img or "uploads" in img:
+                thumb = img
+                break
+        if not thumb and img_matches:
+            thumb = img_matches[0]
+            
+        if link and "/page/" not in link: # Hindari link paginasi masuk ke list film
+            if not any(f['url'] == link for f in found):
+                found.append({'title': title, 'url': link, 'thumb': thumb})
+    
+    # Cari link "Next Page" - cari teks "Next" atau simbol »
+    next_page = None
+    next_match = re.search(r'<a href=["\']([^"\']+)["\'][^>]*>(?:Next|&raquo;|»|Halaman Berikutnya)</a>', html)
+    if next_match:
+        next_page = next_match.group(1)
+        if not next_page.startswith('http'):
+            next_page = BASE_URL + next_page
 
     return found, next_page
 
@@ -122,21 +137,21 @@ def parse_m3u(url):
         return []
         
     channels = []
-    # Menggunakan sistem split berdasarkan #EXTINF agar lebih akurat dan tidak terpengaruh baris kosong
-    items = content.split("#EXTINF")
-    for item in items[1:]: # Lewati header #EXTM3U
-        try:
-            # Format: :-1 group-title="...",Nama Channel\nURL
-            info_part, stream_url = item.split("http", 1)
-            stream_url = "http" + stream_url.split("\n")[0].split("\r")[0].strip()
-            
-            # Ambil nama channel (setelah koma terakhir di baris pertama)
-            name = info_part.split(",")[-1].split("\n")[0].split("\r")[0].strip()
-            
-            if name and stream_url:
-                channels.append({'title': name, 'url': stream_url})
-        except:
-            continue
+    # Membersihkan konten dari baris kosong yang mengganggu pembacaan
+    lines = [line.strip() for line in content.split('\n') if line.strip()]
+    
+    current_name = ""
+    for line in lines:
+        if line.startswith("#EXTINF"):
+            # Ambil bagian setelah koma terakhir sebagai nama
+            if "," in line:
+                current_name = line.split(",")[-1].strip()
+            else:
+                current_name = "Unknown Channel"
+        elif line.startswith("http"):
+            if current_name:
+                channels.append({'title': current_name, 'url': line})
+                current_name = "" # Reset setelah dapet pasangan URL
             
     if KODI: xbmc.log(f"NYETPLIX M3U CHANNELS FOUND: {len(channels)}", xbmc.LOGINFO)
     return channels[:300]
