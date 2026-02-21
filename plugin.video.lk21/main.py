@@ -16,22 +16,51 @@ except ImportError:
     KODI = False
 
 # URL Dasar
-BASE_URL = "https://tv8.lk21official.cc"
+LK21_URL = "https://tv8.lk21official.cc"
+SERIES_URL = "https://tv3.nontondrama.my"
+JAV_URL = "https://javtiful.com"
+
 IPTV_INDO_URL = "https://iptv-org.github.io/iptv/countries/id.m3u"
 IPTV_SPORTS_URL = "https://iptv-org.github.io/iptv/categories/sports.m3u"
+
+# Konten Mapping
+MOVIES_CATS = [
+    ("Movies Terbaru", f"{LK21_URL}/latest"),
+    ("Action", f"{LK21_URL}/genre/action/"),
+    ("Anime", f"{LK21_URL}/genre/animation/"),
+    ("Horror", f"{LK21_URL}/genre/horror/"),
+    ("Comedy", f"{LK21_URL}/genre/comedy/"),
+    ("Sci-Fi", f"{LK21_URL}/genre/sci-fi/"),
+    ("Romance", f"{LK21_URL}/genre/romance/"),
+    ("Bluray", f"{LK21_URL}/quality/bluray/"),
+    ("Populer", f"{LK21_URL}/populer/")
+]
+
+SERIES_CATS = [
+    ("Action", f"{SERIES_URL}/genre/action/"),
+    ("Sci-Fi", f"{SERIES_URL}/genre/sci-fi/"),
+    ("Populer", f"{SERIES_URL}/populer/")
+]
+
+JAV_CATS = [
+    ("Pemeran", f"{JAV_URL}/actresses"),
+    ("Channels", f"{JAV_URL}/channels"),
+    ("Genre", f"{JAV_URL}/categories")
+]
 
 # List Kategori (Berdasarkan riset browser)
 GENRES = ["Action", "Adventure", "Animation", "Biography", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Musical", "Mystery", "Romance", "Sci-Fi", "Sport", "Thriller", "War", "Western"]
 COUNTRIES = ["USA", "China", "India", "Japan", "South-Korea", "Thailand"]
 YEARS = [str(y) for y in range(2026, 2010, -1)]
-SERIES_CATS = [
-    ("Daftar Series", "/nontondrama"),
-    ("Series Terbaru", "/nontondrama?page=latest-series"),
-    ("Series Ongoing", "/nontondrama?page=series/ongoing"),
-    ("Series Complete", "/nontondrama?page=series/complete"),
-    ("Series Asian", "/nontondrama?page=series/asian"),
-    ("Series West", "/nontondrama?page=series/west")
-]
+# The original SERIES_CATS is now replaced by the new one above.
+# SERIES_CATS = [
+#     ("Daftar Series", "/nontondrama"),
+#     ("Series Terbaru", "/nontondrama?page=latest-series"),
+#     ("Series Ongoing", "/nontondrama?page=series/ongoing"),
+#     ("Series Complete", "/nontondrama?page=series/complete"),
+#     ("Series Asian", "/nontondrama?page=series/asian"),
+#     ("Series West", "/nontondrama?page=series/west")
+# ]
 
 HANDLE = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 0
 
@@ -61,10 +90,10 @@ def fetch(url):
 
 # --- Scraper Logic ---
 
-def list_lk21_movies(page_url):
+def list_lk21_movies(page_url, current_page=1):
     html = fetch(page_url)
     if not html:
-        return [], None
+        return []
         
     found = []
     # Temukan setiap blok <article> terlebih dahulu
@@ -76,8 +105,10 @@ def list_lk21_movies(page_url):
         link_match = re.search(r'href=["\']([^"\']+)["\']', art)
         if link_match:
             link = link_match.group(1)
+            # Handle relative links based on domain (LK21 or Series)
+            domain = SERIES_URL if "nontondrama" in page_url else LK21_URL
             if not link.startswith('http'):
-                link = BASE_URL + link
+                link = domain + link
         
         # Ekstrak Judul: cari di dalam h3
         title = "No Title"
@@ -85,30 +116,43 @@ def list_lk21_movies(page_url):
         if title_match:
             title = title_match.group(1).strip()
             
-        # Ekstrak Thumbnail: cari src pertama yang bukan placeholder
+        # Ekstrak Thumbnail
         thumb = ""
-        # Mencari gambar yang biasanya mengandung poster atau slug di URL-nya
         img_matches = re.findall(r'src=["\']([^"\']+)["\']', art)
         for img in img_matches:
-            if "poster" in img or "thumb" in img or "uploads" in img:
+            if any(k in img for k in ["poster", "thumb", "uploads"]):
                 thumb = img
                 break
         if not thumb and img_matches:
             thumb = img_matches[0]
             
-        if link and "/page/" not in link: # Hindari link paginasi masuk ke list film
+        if link and "/page/" not in link:
             if not any(f['url'] == link for f in found):
                 found.append({'title': title, 'url': link, 'thumb': thumb})
     
-    # Cari link "Next Page" - cari teks "Next" atau simbol »
-    next_page = None
-    next_match = re.search(r'<a href=["\']([^"\']+)["\'][^>]*>(?:Next|&raquo;|»|Halaman Berikutnya)</a>', html)
-    if next_match:
-        next_page = next_match.group(1)
-        if not next_page.startswith('http'):
-            next_page = BASE_URL + next_page
+    return found
 
-    return found, next_page
+def list_jav_movies(page_url):
+    """Blind scraper for javtiful.com"""
+    html = fetch(page_url)
+    if not html:
+        return []
+        
+    found = []
+    # Pola umum video list biasanya di dalam div dengan thumbnail
+    # Mencoba mencari link dan gambar yang berdekatan
+    matches = re.findall(r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>.*?<img[^>]+src=["\']([^"\']+)["\'][^>]*>.*?<h[23][^>]*>(.*?)</h[23]>', html, re.DOTALL)
+    
+    if not matches:
+        # Pola alternatif (link di judul, gambar terpisah)
+        matches = re.findall(r'href=["\']([^"\']+/video/[^"\']+)["\'].*?src=["\']([^"\']+)["\'].*?alt=["\']([^"\']+)["\']', html, re.DOTALL)
+
+    for link, thumb, title in matches:
+        if not link.startswith('http'):
+            link = JAV_URL + link
+        found.append({'title': title.strip(), 'url': link, 'thumb': thumb})
+        
+    return found
 
 def get_lk21_video(movie_url):
     html = fetch(movie_url)
@@ -190,52 +234,57 @@ def add_item(label, url_params, is_folder=True, thumbnail=""):
     xbmcplugin.addDirectoryItem(handle=HANDLE, url=url, listitem=list_item, isFolder=is_folder)
 
 def main_menu():
-    add_item("Movies Terbaru", {'action': 'lk21_menu', 'url': f"{BASE_URL}/latest"})
-    add_item("Movies Terpopuler", {'action': 'lk21_menu', 'url': f"{BASE_URL}/populer"})
-    add_item("Kategori Film (Genre)", {'action': 'submenu', 'type': 'genre'})
-    add_item("Negara (Country)", {'action': 'submenu', 'type': 'country'})
-    add_item("Tahun (Year)", {'action': 'submenu', 'type': 'year'})
-    add_item("Series & Drama", {'action': 'submenu', 'type': 'series'})
+    add_item("Movies", {'action': 'folder', 'type': 'movies'})
+    add_item("Series", {'action': 'folder', 'type': 'series'})
+    add_item("Telenovela", {'action': 'folder', 'type': 'jav'})
     add_item("TV Indonesia", {'action': 'iptv', 'url': IPTV_INDO_URL, 'mode': 'indo'})
-    add_item("Sports Live (beIN/SPOTV)", {'action': 'iptv', 'url': IPTV_SPORTS_URL, 'mode': 'sports'})
+    add_item("Sports Live", {'action': 'iptv', 'url': IPTV_SPORTS_URL, 'mode': 'sports'})
     xbmcplugin.endOfDirectory(HANDLE)
 
-def submenu(stype):
-    if stype == 'genre':
-        for g in GENRES:
-            add_item(g, {'action': 'lk21_menu', 'url': f"{BASE_URL}/genre/{g.lower()}"})
-    elif stype == 'country':
-        for c in COUNTRIES:
-            add_item(c, {'action': 'lk21_menu', 'url': f"{BASE_URL}/country/{c.lower()}"})
-    elif stype == 'year':
-        for y in YEARS:
-            add_item(y, {'action': 'lk21_menu', 'url': f"{BASE_URL}/year/{y}"})
-    elif stype == 'series':
-        for label, path in SERIES_CATS:
-            add_item(label, {'action': 'lk21_menu', 'url': f"{BASE_URL}{path}"})
+def folder_menu(ftype):
+    if ftype == 'movies':
+        for label, url in MOVIES_CATS:
+            add_item(label, {'action': 'list_content', 'url': url, 'page': 1, 'site': 'lk21'})
+    elif ftype == 'series':
+        for label, url in SERIES_CATS:
+            add_item(label, {'action': 'list_content', 'url': url, 'page': 1, 'site': 'series'})
+    elif ftype == 'jav':
+        for label, url in JAV_CATS:
+            add_item(label, {'action': 'list_content', 'url': url, 'page': 1, 'site': 'jav'})
     xbmcplugin.endOfDirectory(HANDLE)
 
-def search_lk21():
-    kb = xbmc.Keyboard('', 'Masukkan Judul Film')
-    kb.doModal()
-    if kb.isConfirmed():
-        query = kb.getText()
-        if query:
-            # Format search di lk21 biasanya ?s=query
-            search_url = f"{BASE_URL}/?s={urllib.parse.quote(query)}"
-            lk21_menu(search_url)
+def list_content_menu(base_url, page, site):
+    page = int(page)
+    # Tentukan URL berdasarkan pola paginasi
+    if page == 1:
+        request_url = base_url
+    else:
+        if site == 'jav':
+            request_url = f"{base_url}?page={page}"
+        else: # lk21 & series
+            # Bersihkan slash akhir jika ada
+            clean_url = base_url.rstrip('/')
+            request_url = f"{clean_url}/page/{page}/"
 
-def lk21_menu(url):
-    movies, next_page = list_lk21_movies(url)
-    for movie in movies:
-        add_item(movie['title'], {'action': 'play_lk21', 'url': movie['url']}, is_folder=False, thumbnail=movie['thumb'])
+    if site == 'jav':
+        items = list_jav_movies(request_url)
+    else:
+        items = list_lk21_movies(request_url)
+
+    if not items and page > 1:
+        xbmcgui.Dialog().notification("Info", "Halaman Terakhir", xbmcgui.NOTIFICATION_INFO, 2000)
+        return
+
+    for item in items:
+        # Telenovela plays direct (usually), LK21/Series uses resolver
+        action = 'play_direct' if site == 'jav' else 'play_lk21'
+        add_item(item['title'], {'action': action, 'url': item['url']}, is_folder=False, thumbnail=item['thumb'])
     
-    if next_page:
-        add_item(">>> Halaman Berikutnya", {'action': 'lk21_menu', 'url': next_page})
+    # Tombol Next Page Otomatis
+    if items:
+        add_item(f"Halaman Berikutnya ({page + 1})", {'action': 'list_content', 'url': base_url, 'page': page + 1, 'site': site})
         
     xbmcplugin.endOfDirectory(HANDLE)
-
-def iptv_menu(url, mode='all'):
     channels = parse_m3u(url)
     
     # Filter untuk Sports jika diinginkan
@@ -278,10 +327,10 @@ def router(param_string):
 
     if not action:
         main_menu()
-    elif action == 'lk21_menu':
-        lk21_menu(params.get('url'))
-    elif action == 'submenu':
-        submenu(params.get('type'))
+    elif action == 'folder':
+        folder_menu(params.get('type'))
+    elif action == 'list_content':
+        list_content_menu(params.get('url'), params.get('page'), params.get('site'))
     elif action == 'iptv':
         iptv_menu(params.get('url'), params.get('mode', 'all'))
     elif action == 'play_lk21':
@@ -289,7 +338,7 @@ def router(param_string):
         if video_url:
             play(video_url)
     elif action == 'play_direct':
-        # Tambahkan User-Agent standar agar IPTV lebih lancar diputar
+        # Default UA
         ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
         video_url = f"{params.get('url')}|User-Agent={ua}"
         play(video_url)
