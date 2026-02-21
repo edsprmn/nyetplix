@@ -17,7 +17,7 @@ except ImportError:
 
 # URL Dasar
 BASE_URL = "https://tv8.lk21official.cc"
-IPTV_INDO_URL = "https://raw.githubusercontent.com/mgi24/tvdigital/main/idwork.m3u"
+IPTV_INDO_URL = "https://raw.githubusercontent.com/mgi24/tvdigital/main/iptv_indonesia.m3u"
 IPTV_SPORTS_URL = "https://iptv-org.github.io/iptv/categories/sports.m3u"
 
 HANDLE = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 0
@@ -43,27 +43,19 @@ def fetch(url):
 
 def list_lk21_movies(page_url):
     html = fetch(page_url)
-    # Temukan setiap blok <article> untuk setiap film
-    articles = re.findall(r'<article[^>]*>.*?</article>', html, re.DOTALL)
+    # Pattern yang benar: <a> -> <img> -> <h3>
+    pattern = r'<a href="([^"]+)" itemprop="url">.*?<img.*?src="([^"]+)".*?<h3 class="poster-title" itemprop="name">([^<]+)</h3>'
+    movies = re.findall(pattern, html, re.DOTALL)
     
     found = []
-    for art in articles:
-        # Ekstrak Link, Judul, dan Thumbnail dari dalam article
-        link_match = re.search(r'href="([^"]+)" itemprop="url"', art)
-        thumb_match = re.search(r'src="([^"]+)"', art)
-        title_match = re.search(r'<h3 class="poster-title"[^>]*>([^<]+)</h3>', art)
-        
-        if link_match and thumb_match and title_match:
-            link = link_match.group(1)
-            thumb = thumb_match.group(1)
-            title = title_match.group(1).strip()
-            
-            full_link = link if link.startswith('http') else BASE_URL + link
-            if not any(f['url'] == full_link for f in found):
-                found.append({'title': title, 'url': full_link, 'thumb': thumb})
+    for link, thumb, title in movies:
+        full_link = link if link.startswith('http') else BASE_URL + link
+        # Hindari duplikat
+        if not any(f['url'] == full_link for f in found):
+            found.append({'title': title.strip(), 'url': full_link, 'thumb': thumb})
     
-    # Cari link "Next Page" dengan pola yang lebih fleksibel (&raquo; atau »)
-    next_match = re.search(r'<a href="([^"]+)">(&raquo;|»|Next)</a>', html)
+    # Cari link "Next Page"
+    next_match = re.search(r'<a href="([^"]+)">»</a>', html)
     next_page = None
     if next_match:
         next_page = next_match.group(1)
