@@ -184,7 +184,7 @@ def get_jav_video(video_url):
     # Fallback: Cari langsung .m3u8 di halaman utama jika ada
     m3u8_match = re.search(r'["\'](https?://[^"\']+\.m3u8[^"\']*)["\']', html)
     if m3u8_match:
-        return m3u8_m.group(1)
+        return m3u8_match.group(1)
         
     return None
 
