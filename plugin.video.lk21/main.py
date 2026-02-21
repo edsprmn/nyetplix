@@ -173,6 +173,28 @@ def list_jav_movies(page_url):
             
     return found
 
+def list_jav_folders(page_url):
+    """Scraper for JAVtiful actresses and categories with visuals."""
+    html = fetch(page_url)
+    if not html:
+        return []
+        
+    found = []
+    if "/actresses" in page_url:
+        # Pola Aktris: <a href=".../actress/name"><img src="thumb">...<a ...>Name</a>
+        pattern = r'href=["\'](https?://javtiful\.com/actress/[^"\']+)["\']><img src=["\']([^"\']+)[\'"].*?class="[^"]*text-black[^"]*">([^<]+)</a>'
+        matches = re.findall(pattern, html, re.DOTALL)
+        for link, thumb, title in matches:
+            found.append({'title': title.strip(), 'url': link, 'thumb': thumb})
+    elif "/categories" in page_url:
+        # Pola Kategori: <a href=".../videos/cat" class="category-tmb"> <img src="thumb"> ... label-category">Name</span>
+        pattern = r'href=["\'](https?://javtiful\.com/videos/[^"\']+)["\'][^>]*class="category-tmb".*?img src=["\']([^"\']+)["\'].*?label-category">([^<]+)</span>'
+        matches = re.findall(pattern, html, re.DOTALL)
+        for link, thumb, title in matches:
+            found.append({'title': title.strip(), 'url': link, 'thumb': thumb})
+            
+    return found
+
 def get_jav_video(video_url):
     """Deep Resolver for JAVtiful.com using AJAX API"""
     html = fetch(video_url)
@@ -324,7 +346,12 @@ def list_content_menu(base_url, page, site):
             clean_url = base_url.rstrip('/')
             request_url = f"{clean_url}/page/{page}/"
 
-    if site == 'jav':
+    # Tentukan scraper berdasarkan jenis konten
+    is_jav_folder = (site == 'jav' and any(k in base_url for k in ["/actresses", "/categories"]))
+    
+    if is_jav_folder:
+        items = list_jav_folders(request_url)
+    elif site == 'jav':
         items = list_jav_movies(request_url)
     else:
         items = list_lk21_movies(request_url)
@@ -334,9 +361,13 @@ def list_content_menu(base_url, page, site):
         return
 
     for item in items:
-        # Telenovela plays direct (usually), LK21/Series uses resolver
-        action = 'play_jav' if site == 'jav' else 'play_lk21'
-        add_item(item['title'], {'action': action, 'url': item['url']}, is_folder=False, thumbnail=item['thumb'])
+        if is_jav_folder:
+            # Jika folder (Aktris/Genre), sesi berikutnya list_content video
+            add_item(item['title'], {'action': 'list_content', 'url': item['url'], 'page': 1, 'site': 'jav'}, is_folder=True, thumbnail=item['thumb'])
+        else:
+            # Jika video, gunakan resolver
+            action = 'play_jav' if site == 'jav' else 'play_lk21'
+            add_item(item['title'], {'action': action, 'url': item['url']}, is_folder=False, thumbnail=item['thumb'])
     
     # Tombol Next Page Otomatis
     if items:
