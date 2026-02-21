@@ -285,6 +285,8 @@ def list_content_menu(base_url, page, site):
         add_item(f"Halaman Berikutnya ({page + 1})", {'action': 'list_content', 'url': base_url, 'page': page + 1, 'site': site})
         
     xbmcplugin.endOfDirectory(HANDLE)
+
+def iptv_menu(url, mode='all'):
     channels = parse_m3u(url)
     
     # Filter untuk Sports jika diinginkan
