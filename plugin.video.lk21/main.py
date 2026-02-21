@@ -191,6 +191,7 @@ def add_item(label, url_params, is_folder=True, thumbnail=""):
 
 def main_menu():
     add_item("Movies Terbaru", {'action': 'lk21_menu', 'url': f"{BASE_URL}/latest"})
+    add_item("Movies Terpopuler", {'action': 'lk21_menu', 'url': f"{BASE_URL}/populer"})
     add_item("Kategori Film (Genre)", {'action': 'submenu', 'type': 'genre'})
     add_item("Negara (Country)", {'action': 'submenu', 'type': 'country'})
     add_item("Tahun (Year)", {'action': 'submenu', 'type': 'year'})
