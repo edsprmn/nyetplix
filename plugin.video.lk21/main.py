@@ -43,12 +43,12 @@ def fetch(url):
 
 def list_lk21_movies(page_url):
     html = fetch(page_url)
-    # Pattern yang lebih inklusif untuk mengambil semua movie item di halaman
-    pattern = r'<a href="([^"]+)" itemprop="url">.*?<h3 class="poster-title" itemprop="name">([^<]+)</h3>.*?<img.*?src="([^"]+)"'
+    # Pattern yang benar: <a> -> <img> -> <h3>
+    pattern = r'<a href="([^"]+)" itemprop="url">.*?<img.*?src="([^"]+)".*?<h3 class="poster-title" itemprop="name">([^<]+)</h3>'
     movies = re.findall(pattern, html, re.DOTALL)
     
     found = []
-    for link, title, thumb in movies:
+    for link, thumb, title in movies:
         full_link = link if link.startswith('http') else BASE_URL + link
         # Hindari duplikat
         if not any(f['url'] == full_link for f in found):
@@ -105,7 +105,7 @@ def parse_m3u(url):
     channels = []
     pattern = r'#EXTINF:.*?,(.*?)\n(http.*?)$'
     matches = re.findall(pattern, content, re.MULTILINE)
-    for name, stream_url in matches[:50]:
+    for name, stream_url in matches[:200]: # Naikkan limit ke 200
         channels.append({'title': name.strip(), 'url': stream_url.strip()})
     return channels
 
@@ -167,7 +167,10 @@ def router(param_string):
         if video_url:
             play(video_url)
     elif action == 'play_direct':
-        play(params.get('url'))
+        # Tambahkan User-Agent standar agar IPTV lebih lancar diputar
+        ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+        video_url = f"{params.get('url')}|User-Agent={ua}"
+        play(video_url)
 
 if __name__ == "__main__":
     try:
