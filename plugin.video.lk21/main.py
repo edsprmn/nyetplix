@@ -43,9 +43,18 @@ SERIES_CATS = [
 ]
 
 JAV_CATS = [
-    ("Pemeran", f"{JAV_URL}/actresses"),
+    ("Semua Video", f"{JAV_URL}/videos"),
+    ("Trending", f"{JAV_URL}/trending"),
+    ("Rekomendasi", f"{JAV_URL}/recommendation"),
+    ("Sedang Ditonton", f"{JAV_URL}/videos/sort=being_watched"),
+    ("Paling Banyak Dilihat", f"{JAV_URL}/videos/sort=most_viewed"),
+    ("Rating Teratas", f"{JAV_URL}/videos/sort=top_rated"),
+    ("Favorit Teratas", f"{JAV_URL}/videos/sort=top_favorites"),
+    ("Disensor", f"{JAV_URL}/censored"),
+    ("Tanpa Sensor", f"{JAV_URL}/uncensored"),
+    ("Pemeran (Actresses)", f"{JAV_URL}/actresses"),
     ("Channels", f"{JAV_URL}/channels"),
-    ("Genre", f"{JAV_URL}/categories")
+    ("Genre (Categories)", f"{JAV_URL}/categories")
 ]
 
 # List Kategori (Berdasarkan riset browser)
@@ -133,24 +142,33 @@ def list_lk21_movies(page_url, current_page=1):
     return found
 
 def list_jav_movies(page_url):
-    """Blind scraper for javtiful.com"""
+    """Refined scraper for javtiful.com"""
     html = fetch(page_url)
     if not html:
         return []
         
     found = []
-    # Pola umum video list biasanya di dalam div dengan thumbnail
-    # Mencoba mencari link dan gambar yang berdekatan
-    matches = re.findall(r'<a[^>]+href=["\']([^"\']+)["\'][^>]*>.*?<img[^>]+src=["\']([^"\']+)["\'][^>]*>.*?<h[23][^>]*>(.*?)</h[23]>', html, re.DOTALL)
+    # Pola: <a href="..."><img src="..."> <span class="...">Title</span>
+    # Mencari pola kontainer video
+    articles = re.findall(r'<div[^>]*class=["\'][^"\']*col[^"\']*["\'][^>]*>(.*?)</div>\s*</div>', html, re.DOTALL)
     
-    if not matches:
-        # Pola alternatif (link di judul, gambar terpisah)
-        matches = re.findall(r'href=["\']([^"\']+/video/[^"\']+)["\'].*?src=["\']([^"\']+)["\'].*?alt=["\']([^"\']+)["\']', html, re.DOTALL)
-
-    for link, thumb, title in matches:
-        if not link.startswith('http'):
-            link = JAV_URL + link
-        found.append({'title': title.strip(), 'url': link, 'thumb': thumb})
+    if not articles:
+        # Fallback pola umum links + images
+        matches = re.findall(r'href=["\'](https?://javtiful\.com/video/[^"\']+)["\'][^>]*>.*?src=["\']([^"\']+)["\'].*?class=["\'][^"\']*title[^"\']*["\'][^>]*>(.*?)</span>', html, re.DOTALL)
+        for link, thumb, title in matches:
+            found.append({'title': title.strip(), 'url': link, 'thumb': thumb})
+    else:
+        for art in articles:
+            link_m = re.search(r'href=["\']([^"\']+)["\']', art)
+            img_m = re.search(r'src=["\']([^"\']+)["\']', art)
+            title_m = re.search(r'<(?:span|h[23])[^>]*class=["\'][^"\']*title[^"\']*["\'][^>]*>(.*?)</', art)
+            
+            if link_m and img_m:
+                link = link_m.group(1)
+                thumb = img_m.group(1)
+                title = title_m.group(1).strip() if title_m else "Video"
+                if not link.startswith('http'): link = JAV_URL + link
+                found.append({'title': title, 'url': link, 'thumb': thumb})
         
     return found
 
@@ -317,8 +335,8 @@ def iptv_menu(url, mode='all'):
         add_item(ch['title'], {'action': 'play_direct', 'url': ch['url']}, is_folder=False)
     xbmcplugin.endOfDirectory(HANDLE)
 
-def play(url):
-    list_item = xbmcgui.ListItem(path=url)
+def play(media_url):
+    list_item = xbmcgui.ListItem(path=media_url)
     xbmcplugin.setResolvedUrl(HANDLE, True, list_item)
 
 # --- Routing ---
@@ -336,14 +354,14 @@ def router(param_string):
     elif action == 'iptv':
         iptv_menu(params.get('url'), params.get('mode', 'all'))
     elif action == 'play_lk21':
-        video_url = get_lk21_video(params.get('url'))
-        if video_url:
-            play(video_url)
+        v_url = get_lk21_video(params.get('url'))
+        if v_url:
+            play(v_url)
     elif action == 'play_direct':
         # Default UA
         ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-        video_url = f"{params.get('url')}|User-Agent={ua}"
-        play(video_url)
+        v_url = f"{params.get('url')}|User-Agent={ua}"
+        play(v_url)
 
 if __name__ == "__main__":
     try:
