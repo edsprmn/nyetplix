@@ -44,3 +44,21 @@ Script ini akan otomatis melakukan:
 3.  Melakukan `git push` ke GitHub.
 
 Sangat praktis, bukan?
+
+---
+
+## 📺 Bonus: Menjadikan Kodi sebagai TV Kabel (PVR IPTV Simple Client)
+
+Jika Anda ingin pengalaman menonton TV yang jauh lebih "nyata" dengan *Channel Guide (EPG)* layaknya TV berlangganan (seperti Indovision/First Media), Anda bisa menggunakan fitur bawaan Kodi. Berikut cara setup TV Lokal Indonesia:
+
+1. Di menu utama Kodi, buka **Add-ons** > ikon kotak terbuka (kiri atas) > **Install from repository** > **PVR clients**.
+2. Cari dan klik **PVR IPTV Simple Client**, lalu pilih **Install**.
+3. Setelah terpasang, klik aplikasinya lagi dan pilih **Configure**.
+4. Pada tab **General**:
+   - Location: `Remote Path (Internet Address)`
+   - M3U Play List URL: `https://iptv-org.github.io/iptv/countries/id.m3u`
+5. Pada tab **EPG Settings**:
+   - Location: `Remote Path (Internet Address)`
+   - XMLTV URL: `https://iptv-org.github.io/epg/guides/id/transvision.co.id.epg.xml`
+6. Klik **OK**, lalu akan ada prompt untuk merestart PVR. Jika tidak, **Restart Kodi** manual.
+7. Sekarang Anda akan melihat menu **TV** di layar depan Kodi. Selamat menikmati siaran TV dengan jadwal yang rapi!

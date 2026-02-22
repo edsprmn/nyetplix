@@ -417,7 +417,7 @@ def list_content_menu(base_url, page, site):
             add_item(item['title'], {'action': action, 'url': item['url']}, is_folder=False, thumbnail=item['thumb'])
     
     # Tombol Next Page Otomatis
-    if items and not is_jav_folder: # Subfolder list JAV tidak punya pagination di source
+    if items:
         add_item(f"Halaman Berikutnya ({page + 1})", {'action': 'list_content', 'url': base_url, 'page': page + 1, 'site': site})
         
     xbmcplugin.endOfDirectory(HANDLE)
