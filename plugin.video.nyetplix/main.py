@@ -19,6 +19,7 @@ except ImportError:
 LK21_URL = "https://tv8.lk21official.cc"
 SERIES_URL = "https://tv3.nontondrama.my"
 JAV_URL = "https://javtiful.com"
+REBAHIN_URL = "https://rebahinxxi3.biz"
 
 IPTV_INDO_URL = "https://iptv-org.github.io/iptv/countries/id.m3u"
 IPTV_SPORTS_URL = "https://iptv-org.github.io/iptv/categories/sports.m3u"
@@ -58,10 +59,43 @@ JAV_CATS = [
     ("Genre (Categories)", f"{JAV_URL}/categories")
 ]
 
+REBAHIN_CATS = [
+    ("Film Terbaru", f"{REBAHIN_URL}/movies/"),
+    ("Series", f"{REBAHIN_URL}/series/"),
+    ("Action", f"{REBAHIN_URL}/genre/action/"),
+    ("Horror", f"{REBAHIN_URL}/genre/horror/"),
+    ("Drama Korea", f"{REBAHIN_URL}/nonton-drama-korea/"),
+    ("Romance", f"{REBAHIN_URL}/film-romance-terbaru-2017/"),
+    ("Animation", f"{REBAHIN_URL}/genre/animation/"),
+    ("Populer", f"{REBAHIN_URL}/genre/populer/"),
+    ("Berdasarkan Genre", "rebahin_genres"),
+]
+
 # List Kategori (Berdasarkan riset browser)
 GENRES = ["Action", "Adventure", "Animation", "Biography", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Musical", "Mystery", "Romance", "Sci-Fi", "Sport", "Thriller", "War", "Western"]
 COUNTRIES = ["USA", "China", "India", "Japan", "South-Korea", "Thailand"]
 YEARS = [str(y) for y in range(2026, 2010, -1)]
+
+REBAHIN_GENRES = [
+    ("Action", f"{REBAHIN_URL}/genre/action/"),
+    ("Adventure", f"{REBAHIN_URL}/genre/adventure/"),
+    ("Animation", f"{REBAHIN_URL}/genre/animation/"),
+    ("Biography", f"{REBAHIN_URL}/genre/biography/"),
+    ("Comedy", f"{REBAHIN_URL}/genre/comedy/"),
+    ("Crime", f"{REBAHIN_URL}/genre/crime/"),
+    ("Documentary", f"{REBAHIN_URL}/genre/documentary/"),
+    ("Drama", f"{REBAHIN_URL}/genre/drama/"),
+    ("Drama Korea", f"{REBAHIN_URL}/genre/drama-korea/"),
+    ("Family", f"{REBAHIN_URL}/genre/family/"),
+    ("Fantasy", f"{REBAHIN_URL}/genre/fantasy/"),
+    ("History", f"{REBAHIN_URL}/genre/history/"),
+    ("Horror", f"{REBAHIN_URL}/genre/horror/"),
+    ("Mystery", f"{REBAHIN_URL}/genre/mystery/"),
+    ("Romance", f"{REBAHIN_URL}/genre/romance/"),
+    ("Sci-Fi", f"{REBAHIN_URL}/genre/sci-fi/"),
+    ("Thriller", f"{REBAHIN_URL}/genre/thriller/"),
+    ("War", f"{REBAHIN_URL}/genre/war/"),
+]
 # The original SERIES_CATS is now replaced by the new one above.
 # SERIES_CATS = [
 #     ("Daftar Series", "/nontondrama"),
@@ -186,6 +220,71 @@ def list_lk21_folders(folder_type):
         return []
         
     return [{'title': label, 'url': url, 'thumb': ""} for label, url in items]
+
+def list_rebahin_movies(page_url):
+    """Scraper untuk rebahinxxi3.biz - menggunakan pola ml-item."""
+    html = fetch(page_url)
+    if not html:
+        return []
+
+    found = []
+    # Cari semua ml-item: <div class='ml-item'><a href='...' title='...'><img src='...'>
+    pattern = r"data-movie-id='[0-9]+' class='ml-item'><a href='([^']+)'[^>]*title='([^']+)'[^>]*>.*?<img src='([^']+)'[^>]*class='lazy thumb mli-thumb'.*?<span class='mli-rating'><i[^>]*></i>([^<]*)</span>"
+    matches = re.findall(pattern, html, re.DOTALL)
+
+    for link, title, thumb, rating in matches:
+        # Ekstrak tahun dari judul: "Film Title (2025)"
+        year_match = re.search(r'\((\d{4})\)', title)
+        year = int(year_match.group(1)) if year_match else 0
+        try:
+            rating_val = float(rating.strip())
+        except:
+            rating_val = 0.0
+        found.append({
+            'title': title.strip(),
+            'url': link,
+            'thumb': thumb,
+            'year': year,
+            'rating': rating_val
+        })
+
+    # Fallback: pola lebih sederhana jika rating tidak ditemukan
+    if not found:
+        simple = re.findall(
+            r"class='ml-item'><a href='([^']+)'[^>]*title='([^']+)'.*?<img src='([^']+)'[^>]*class='lazy thumb mli-thumb'",
+            html, re.DOTALL
+        )
+        for link, title, thumb in simple:
+            year_match = re.search(r'\((\d{4})\)', title)
+            year = int(year_match.group(1)) if year_match else 0
+            found.append({'title': title.strip(), 'url': link, 'thumb': thumb, 'year': year, 'rating': 0.0})
+
+    return found
+
+
+def get_rebahin_detail(movie_url):
+    """Ambil metadata detail (sinopsis, genre) dari halaman film Rebahin."""
+    html = fetch(movie_url)
+    if not html:
+        return {}
+    detail = {}
+    # Sinopsis: ambil <p> pertama yang cukup panjang
+    p_tags = re.findall(r'<p>(.*?)</p>', html, re.DOTALL)
+    for p in p_tags:
+        clean = re.sub(r'<[^>]+>', '', p).strip()
+        if len(clean) > 80:
+            detail['plot'] = clean
+            break
+    # Genre
+    genres = re.findall(r'href=["\']/genre/([^"\']+)["\'\s]', html)
+    if genres:
+        detail['genre'] = ', '.join(g.replace('/', '').replace('-', ' ').title() for g in genres[:3])
+    # Negara
+    countries = re.findall(r'href=["\']/country/([^"\']+)["\'\s]', html)
+    if countries:
+        detail['country'] = countries[0].replace('/', '').title()
+    return detail
+
 
 def list_jav_movies(page_url):
     """Refined scraper for javtiful.com"""
@@ -340,24 +439,29 @@ def parse_m3u(url):
 
 # --- Kodi UI Logic ---
 
-def add_item(label, url_params, is_folder=True, thumbnail=""):
+def add_item(label, url_params, is_folder=True, thumbnail="", info=None):
     addon_base = sys.argv[0]
     query = urllib.parse.urlencode(url_params)
     url = f"{addon_base}?{query}"
     # Gunakan offscreen=True dan setLabel agar kompatibel dengan Kodi 19+
     list_item = xbmcgui.ListItem(offscreen=True)
     list_item.setLabel(label)
-    
+
     if thumbnail:
-        list_item.setArt({'thumb': thumbnail, 'icon': thumbnail})
-    
+        list_item.setArt({'thumb': thumbnail, 'icon': thumbnail, 'poster': thumbnail})
+
+    # Set video metadata untuk tampilan di Kodi (thumb view, info panel)
+    if info:
+        list_item.setInfo('video', info)
+
     if not is_folder:
         list_item.setProperty('IsPlayable', 'true')
-        
+
     xbmcplugin.addDirectoryItem(handle=HANDLE, url=url, listitem=list_item, isFolder=is_folder)
 
 def main_menu():
-    add_item("Movies", {'action': 'folder', 'type': 'movies'})
+    add_item("LK21", {'action': 'folder', 'type': 'movies'})
+    add_item("Rebahin", {'action': 'folder', 'type': 'rebahin'})
     add_item("Series", {'action': 'folder', 'type': 'series'})
     add_item("Telenovela", {'action': 'folder', 'type': 'jav'})
     add_item("TV Indonesia", {'action': 'iptv', 'url': IPTV_INDO_URL, 'mode': 'indo'})
@@ -378,6 +482,12 @@ def folder_menu(ftype):
     elif ftype == 'jav':
         for label, url in JAV_CATS:
             add_item(label, {'action': 'list_content', 'url': url, 'page': 1, 'site': 'jav'})
+    elif ftype == 'rebahin':
+        for label, url in REBAHIN_CATS:
+            if url == 'rebahin_genres':
+                add_item(label, {'action': 'list_subfolders', 'type': 'rebahin_genres', 'site': 'rebahin'})
+            else:
+                add_item(label, {'action': 'list_content', 'url': url, 'page': 1, 'site': 'rebahin'})
     xbmcplugin.endOfDirectory(HANDLE)
 
 def list_content_menu(base_url, page, site):
@@ -388,18 +498,19 @@ def list_content_menu(base_url, page, site):
     else:
         if site == 'jav':
             request_url = f"{base_url}?page={page}"
-        else: # lk21 & series
-            # Bersihkan slash akhir jika ada
+        else: # lk21, series, rebahin: semua pakai /page/N/
             clean_url = base_url.rstrip('/')
             request_url = f"{clean_url}/page/{page}/"
 
     # Tentukan scraper berdasarkan jenis konten
     is_jav_folder = (site == 'jav' and any(k in base_url for k in ["/actresses", "/categories", "/channels"]))
-    
+
     if is_jav_folder:
         items = list_jav_folders(request_url)
     elif site == 'jav':
         items = list_jav_movies(request_url)
+    elif site == 'rebahin':
+        items = list_rebahin_movies(request_url)
     else:
         items = list_lk21_movies(request_url)
 
@@ -411,26 +522,38 @@ def list_content_menu(base_url, page, site):
         if is_jav_folder:
             # Jika folder (Aktris/Genre), sesi berikutnya list_content video
             add_item(item['title'], {'action': 'list_content', 'url': item['url'], 'page': 1, 'site': 'jav'}, is_folder=True, thumbnail=item['thumb'])
+        elif site == 'rebahin':
+            # Video Rebahin - sertakan metadata
+            info = {
+                'title': item['title'],
+                'year': item.get('year', 0),
+                'rating': item.get('rating', 0.0),
+                'mediatype': 'movie'
+            }
+            add_item(item['title'], {'action': 'play_rebahin', 'url': item['url']}, is_folder=False, thumbnail=item['thumb'], info=info)
         else:
-            # Jika video
+            # LK21 / Series / JAV video
             action = 'play_jav' if site == 'jav' else 'play_lk21'
             add_item(item['title'], {'action': action, 'url': item['url']}, is_folder=False, thumbnail=item['thumb'])
-    
+
     # Tombol Next Page Otomatis
     if items:
         add_item(f"Halaman Berikutnya ({page + 1})", {'action': 'list_content', 'url': base_url, 'page': page + 1, 'site': site})
-        
+
     xbmcplugin.endOfDirectory(HANDLE)
 
 def list_subfolders_menu(folder_type, site):
     """Menampilkan daftar Genre, Tahun, atau Negara sebagai folder visual."""
     if site == 'lk21':
         items = list_lk21_folders(folder_type)
-        
+    elif site == 'rebahin' and folder_type == 'rebahin_genres':
+        items = [{'title': label, 'url': url, 'thumb': ''} for label, url in REBAHIN_GENRES]
+    else:
+        items = []
+
     for item in items:
-        # Link ke list_content film
         add_item(item['title'], {'action': 'list_content', 'url': item['url'], 'page': 1, 'site': site}, is_folder=True, thumbnail=item['thumb'])
-        
+
     xbmcplugin.endOfDirectory(HANDLE)
 
 def iptv_menu(url, mode='all'):
@@ -503,6 +626,36 @@ def router(param_string):
         v_url = get_jav_video(params.get('url'))
         if v_url:
             play(v_url)
+    elif action == 'play_rebahin':
+        movie_url = params.get('url')
+        # Ambil detail (sinopsis, genre) dari halaman film
+        detail = get_rebahin_detail(movie_url)
+        # Cari video URL dari halaman detail
+        html = fetch(movie_url)
+        video_url = None
+        if html:
+            # Cari iframe embed
+            iframe_match = re.search(r'<iframe[^>]+src=["\']([^"\']+)["\']', html, re.IGNORECASE)
+            if iframe_match:
+                embed_url = iframe_match.group(1)
+                if not embed_url.startswith('http'):
+                    embed_url = REBAHIN_URL + embed_url
+                embed_html = fetch(embed_url)
+                if embed_html:
+                    m3u_match = re.search(r'(https?://[^\s"\'>]+\.(?:m3u8|mp4)[^\s"\'>]*)', embed_html)
+                    if m3u_match:
+                        video_url = m3u_match.group(1)
+            # Fallback: cari langsung .m3u8 / .mp4 di halaman utama
+            if not video_url:
+                m3u_match = re.search(r'(https?://[^\s"\'>]+\.(?:m3u8|mp4)[^\s"\'>]*)', html)
+                if m3u_match:
+                    video_url = m3u_match.group(1)
+        if video_url:
+            ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+            play(f"{video_url}|User-Agent={ua}&Referer={movie_url}")
+        else:
+            if KODI:
+                xbmcgui.Dialog().notification("NYETPLIX", "Video tidak ditemukan di halaman ini.", xbmcgui.NOTIFICATION_WARNING, 3000)
     elif action == 'play_direct':
         # Default UA
         ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'

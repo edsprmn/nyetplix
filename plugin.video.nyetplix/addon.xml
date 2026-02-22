@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="plugin.video.nyetplix" name="NYETPLIX" version="2.1.0" provider-name="edsprmn">
+<addon id="plugin.video.nyetplix" name="NYETPLIX" version="2.2.0" provider-name="edsprmn">
     <requires>
         <import addon="xbmc.python" version="3.0.0"/>
         <import addon="script.module.requests" version="2.25.1"/>
@@ -8,8 +8,8 @@
         <provides>video</provides>
     </extension>
     <extension point="xbmc.addon.metadata">
-        <summary>Nonton Movie, Telenovela &amp; Live IPTV</summary>
-        <description>NYETPLIX: Addon Streaming masa depan. Nonton Movie terbaru, Telenovela (JAV), dan saluran TV Indonesia/Sports secara Live.</description>
+        <summary>Nonton Movie, Rebahin, Telenovela &amp; Live IPTV</summary>
+        <description>NYETPLIX: Addon Streaming masa depan. Nonton film dari LK21 &amp; Rebahin, Telenovela (JAV), dan saluran TV Indonesia/Sports secara Live.</description>
         <platform>all</platform>
         <assets>
             <icon>icon.png</icon>
